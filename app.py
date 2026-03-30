@@ -33,12 +33,13 @@ def init_session_state():
 
 init_session_state()
 
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import PATTERN_HERO_LOGO_HTML, inject_pattern_css, pattern_sidebar
 
 inject_pattern_css()
 pattern_sidebar()
 
-# Main landing page
+# Main landing page — hero section with Pattern logo
+st.markdown(PATTERN_HERO_LOGO_HTML, unsafe_allow_html=True)
 st.title("PILO")
 st.markdown(
     """
