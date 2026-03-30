@@ -1,0 +1,12 @@
+CATEGORY-SPECIFIC GUIDELINES FOR PET SUPPLIES:
+
+- Always specify the target species (dog, cat, bird, etc.)
+- Include size/weight suitability ranges (e.g., "for dogs 15-30kg")
+- Mention breed size compatibility (Small, Medium, Large, Giant)
+- Include material safety information where relevant
+- Note any veterinary endorsements or safety certifications
+- Specify cleaning/care instructions
+- Include age suitability (puppy, adult, senior)
+- Mention durability and chew strength ratings where applicable
+- Lead with the benefit to the pet/pet parent, not the feature
+- Include any interactive or enrichment benefits
