@@ -92,63 +92,35 @@ def build_user_prompt(sku_data, missing_attrs, scraped_data=None, crossretail_da
 
 
 def _create_client(settings):
-    """Create the appropriate API client based on settings.
+    """Create the Bifrost API client.
 
-    Returns (client, model_id, backend_type) tuple.
+    Returns (client, model_id) tuple.
     """
-    backend = settings.get("api_backend", "anthropic")
+    from openai import OpenAI
 
-    if backend == "bifrost":
-        from openai import OpenAI
+    api_key = settings.get("bifrost_api_key", "")
+    base_url = settings.get("bifrost_base_url", "https://bifrost.pattern.com")
 
-        api_key = settings.get("bifrost_api_key", "")
-        base_url = settings.get("bifrost_base_url", "https://bifrost.pattern.com")
+    if not api_key:
+        raise ValueError("Bifrost API key is not configured. Please set it in Settings.")
 
-        if not api_key:
-            raise ValueError("Bifrost API key is not configured. Please set it in Settings.")
-
-        client = OpenAI(base_url=base_url, api_key=api_key)
-        model_id = settings.get("model", "anthropic/claude-sonnet-4-6")
-        return client, model_id, "bifrost"
-
-    else:
-        import anthropic
-
-        api_key = settings.get("anthropic_api_key", "")
-        if not api_key:
-            raise ValueError("Anthropic API key is not configured. Please set it in Settings.")
-
-        client = anthropic.Anthropic(api_key=api_key)
-        model_id = settings.get("model", "claude-sonnet-4-20250514")
-        return client, model_id, "anthropic"
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    model_id = settings.get("model", "anthropic/claude-sonnet-4-6")
+    return client, model_id
 
 
-def generate_content_for_sku(client, model, temperature, system_prompt, user_prompt, backend="anthropic"):
-    """Call the AI API for a single SKU and return parsed result."""
-
-    if backend == "bifrost":
-        # OpenAI-compatible API via Bifrost
-        response = client.chat.completions.create(
-            model=model,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=4096,
-        )
-        raw_text = response.choices[0].message.content
-    else:
-        # Direct Anthropic SDK
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            temperature=temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        raw_text = response.content[0].text
-
+def generate_content_for_sku(client, model, temperature, system_prompt, user_prompt):
+    """Call the Bifrost API for a single SKU and return parsed result."""
+    response = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=4096,
+    )
+    raw_text = response.choices[0].message.content
     return parse_json_response(raw_text)
 
 
@@ -205,7 +177,7 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         Dict of results keyed by SKU, and a list of errors.
     """
     try:
-        client, model_id, backend = _create_client(settings)
+        client, model_id = _create_client(settings)
     except ValueError as e:
         st.error(str(e))
         return {}, [str(e)]
@@ -225,8 +197,7 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
     errors = []
     total = len(selected_skus)
 
-    backend_label = "Bifrost" if backend == "bifrost" else "Anthropic"
-    progress_bar = st.progress(0, text=f"Starting generation via {backend_label} ({model_id})...")
+    progress_bar = st.progress(0, text=f"Starting generation via Bifrost ({model_id})...")
     status_container = st.container()
 
     for i, sku in enumerate(selected_skus):
@@ -260,7 +231,7 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
 
         try:
             result = generate_content_for_sku(
-                client, model_id, temperature, system_prompt, user_prompt, backend
+                client, model_id, temperature, system_prompt, user_prompt
             )
             results[sku] = result
 

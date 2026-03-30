@@ -1,11 +1,12 @@
 """Page 1: Settings — Configure brand, category, marketplace, and AI parameters."""
 
+import os
+
 import streamlit as st
 
 from config.category_defaults import CATEGORIES, CATEGORY_GUIDELINES
 from config.marketplace_schemas import MARKETPLACE_OPTIONS
 from config.model_registry import (
-    ANTHROPIC_MODELS,
     BIFROST_MODELS,
     RECOMMENDED_MODELS,
     get_all_bifrost_model_ids,
@@ -22,6 +23,18 @@ st.caption("Configure PILO for your brand, category, and target marketplaces.")
 
 # Load existing settings
 settings = st.session_state.get("settings", {})
+
+
+def _load_secret(key):
+    """Load a secret from st.secrets, then environment, then return empty string."""
+    try:
+        val = st.secrets.get(key, "")
+        if val:
+            return val
+    except Exception:
+        pass
+    return os.environ.get(key, "")
+
 
 # --- Brand Configuration ---
 st.header("Brand Configuration")
@@ -113,149 +126,98 @@ with col2:
         max_value=5000,
     )
 
-# --- AI Configuration ---
-st.header("AI Configuration")
-
-# API backend selection
-api_backend = st.radio(
-    "API Backend",
-    ["Bifrost Gateway (recommended)", "Direct Anthropic API"],
-    index=0 if settings.get("api_backend", "bifrost") == "bifrost" else 1,
-    horizontal=True,
-    help="Bifrost provides access to models from multiple providers (Anthropic, OpenAI, Google, Bedrock) through Pattern's unified gateway.",
+# --- AI Configuration (Bifrost) ---
+st.header("AI Configuration — Bifrost Gateway")
+st.caption(
+    "PILO uses Pattern's Bifrost gateway to access models from Anthropic, OpenAI, "
+    "Google, and AWS Bedrock through a single API."
 )
 
-use_bifrost = api_backend == "Bifrost Gateway (recommended)"
+col1, col2 = st.columns(2)
 
-if use_bifrost:
-    col1, col2 = st.columns(2)
+with col1:
+    # Auto-load from secrets/env, allow manual override
+    default_key = settings.get("bifrost_api_key", "") or _load_secret("BIFROST_API_KEY")
+    bifrost_api_key = st.text_input(
+        "Bifrost API Key",
+        value=default_key,
+        type="password",
+        help="Your Bifrost virtual key (sk-bf-...). Set in Streamlit secrets or BIFROST_API_KEY env var.",
+    )
+    if not bifrost_api_key:
+        st.warning("Bifrost API key required for content generation. Add BIFROST_API_KEY to your Streamlit secrets (.streamlit/secrets.toml) or environment.")
+    elif bifrost_api_key and not settings.get("bifrost_api_key"):
+        st.info("Bifrost API key loaded from secrets/environment.")
 
-    with col1:
-        bifrost_api_key = st.text_input(
-            "Bifrost API Key",
-            value=settings.get("bifrost_api_key", ""),
-            type="password",
-            help="Your Bifrost virtual key (sk-bf-...).",
-        )
-
-        bifrost_base_url = st.text_input(
-            "Bifrost Base URL",
-            value=settings.get("bifrost_base_url", "https://bifrost.pattern.com"),
-            help="Bifrost gateway endpoint.",
-        )
-
-        # Try to load from env/secrets
-        if not bifrost_api_key:
-            import os
-            bifrost_api_key = os.environ.get("BIFROST_API_KEY", "")
-            try:
-                bifrost_api_key = bifrost_api_key or st.secrets.get("BIFROST_API_KEY", "")
-            except Exception:
-                pass
-            if bifrost_api_key:
-                st.info("Bifrost API key loaded from environment/secrets.")
-
-    with col2:
-        # Model selection with grouping
-        st.markdown("**Model**")
-
-        model_options = get_all_bifrost_model_ids()
-        # Put recommended models first
-        sorted_models = [m for m in RECOMMENDED_MODELS if m in model_options]
-        sorted_models += [m for m in model_options if m not in sorted_models]
-
-        current_model = settings.get("model", "anthropic/claude-sonnet-4-6")
-        if current_model not in sorted_models:
-            current_model = sorted_models[0]
-
-        model = st.selectbox(
-            "Select Model",
-            sorted_models,
-            index=sorted_models.index(current_model),
-            format_func=get_model_display_name,
-        )
-
-        # Show model info card
-        model_info = BIFROST_MODELS.get(model, {})
-        if model_info:
-            info_col1, info_col2, info_col3 = st.columns(3)
-            with info_col1:
-                st.markdown(f"**Provider:** `{model_info['provider']}`")
-            with info_col2:
-                st.markdown(f"**Context:** {model_info['context'] // 1000}K")
-            with info_col3:
-                st.markdown(f"**Cost:** ${model_info['input_cost']}/{model_info['output_cost']}")
-
-    temperature = st.slider(
-        "Temperature",
-        min_value=0.0,
-        max_value=1.0,
-        value=settings.get("temperature", 0.1),
-        step=0.05,
+    bifrost_base_url = st.text_input(
+        "Bifrost Base URL",
+        value=settings.get("bifrost_base_url", "https://bifrost.pattern.com"),
+        help="Bifrost gateway endpoint.",
     )
 
-else:
-    # Direct Anthropic API
-    col1, col2 = st.columns(2)
+with col2:
+    st.markdown("**Model**")
 
-    with col1:
-        model = st.selectbox(
-            "Model",
-            ANTHROPIC_MODELS,
-            index=ANTHROPIC_MODELS.index(settings["model"]) if settings.get("model") in ANTHROPIC_MODELS else 0,
-        )
+    model_options = get_all_bifrost_model_ids()
+    # Put recommended models first
+    sorted_models = [m for m in RECOMMENDED_MODELS if m in model_options]
+    sorted_models += [m for m in model_options if m not in sorted_models]
 
-        temperature = st.slider(
-            "Temperature",
-            min_value=0.0,
-            max_value=1.0,
-            value=settings.get("temperature", 0.1),
-            step=0.05,
-        )
+    current_model = settings.get("model", "anthropic/claude-sonnet-4-6")
+    if current_model not in sorted_models:
+        current_model = sorted_models[0]
 
-    with col2:
-        anthropic_api_key = st.text_input(
-            "Anthropic API Key",
-            value=settings.get("anthropic_api_key", ""),
-            type="password",
-            help="Your Claude API key.",
-        )
+    model = st.selectbox(
+        "Select Model",
+        sorted_models,
+        index=sorted_models.index(current_model),
+        format_func=get_model_display_name,
+    )
 
-        if not anthropic_api_key:
-            import os
-            anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-            try:
-                anthropic_api_key = anthropic_api_key or st.secrets.get("ANTHROPIC_API_KEY", "")
-            except Exception:
-                pass
-            if anthropic_api_key:
-                st.info("API key loaded from environment/secrets.")
+    # Show model info card
+    model_info = BIFROST_MODELS.get(model, {})
+    if model_info:
+        info_col1, info_col2, info_col3 = st.columns(3)
+        with info_col1:
+            st.markdown(f"**Provider:** `{model_info['provider']}`")
+        with info_col2:
+            st.markdown(f"**Context:** {model_info['context'] // 1000}K")
+        with info_col3:
+            st.markdown(f"**Cost:** ${model_info['input_cost']}/{model_info['output_cost']}")
 
-    bifrost_api_key = ""
-    bifrost_base_url = ""
+temperature = st.slider(
+    "Temperature",
+    min_value=0.0,
+    max_value=1.0,
+    value=settings.get("temperature", 0.1),
+    step=0.05,
+)
 
 # --- ScrapingBee Configuration ---
-st.header("ScrapingBee Configuration (Optional)")
+st.header("ScrapingBee Configuration")
 
 scraping_enabled = st.checkbox(
     "Enable web scraping",
     value=settings.get("scraping_enabled", False),
 )
 
+default_sb_key = settings.get("scrapingbee_api_key", "") or _load_secret("SCRAPINGBEE_API_KEY")
 scrapingbee_api_key = ""
+
 if scraping_enabled:
     scrapingbee_api_key = st.text_input(
         "ScrapingBee API Key",
-        value=settings.get("scrapingbee_api_key", ""),
+        value=default_sb_key,
         type="password",
+        help="Set in Streamlit secrets or SCRAPINGBEE_API_KEY env var.",
     )
     if not scrapingbee_api_key:
-        import os
-        scrapingbee_api_key = os.environ.get("SCRAPINGBEE_API_KEY", "")
-        try:
-            scrapingbee_api_key = scrapingbee_api_key or st.secrets.get("SCRAPINGBEE_API_KEY", "")
-        except Exception:
-            pass
+        st.warning("ScrapingBee API key required for web scraping. Add SCRAPINGBEE_API_KEY to your Streamlit secrets or environment.")
+    elif scrapingbee_api_key and not settings.get("scrapingbee_api_key"):
+        st.info("ScrapingBee API key loaded from secrets/environment.")
+else:
+    # Still try to load from secrets so it's available when toggled on
+    scrapingbee_api_key = default_sb_key
 
 # --- Save ---
 st.divider()
@@ -275,10 +237,8 @@ if st.button("Save Settings", type="primary"):
         "description_char_limit": description_char_limit,
         "model": model,
         "temperature": temperature,
-        "api_backend": "bifrost" if use_bifrost else "anthropic",
-        "anthropic_api_key": anthropic_api_key if not use_bifrost else "",
-        "bifrost_api_key": bifrost_api_key if use_bifrost else "",
-        "bifrost_base_url": bifrost_base_url if use_bifrost else "",
+        "bifrost_api_key": bifrost_api_key,
+        "bifrost_base_url": bifrost_base_url,
         "scraping_enabled": scraping_enabled,
         "scrapingbee_api_key": scrapingbee_api_key,
     }

@@ -1,15 +1,4 @@
-"""Available AI models via Bifrost gateway and direct Anthropic API."""
-
-# Models available via direct Anthropic SDK
-ANTHROPIC_MODELS = [
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514",
-    "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-5-20250929",
-    "claude-opus-4-5-20251101",
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-]
+"""Available AI models via Pattern's Bifrost gateway."""
 
 # Models available via Bifrost gateway (OpenAI-compatible)
 BIFROST_MODELS = {
