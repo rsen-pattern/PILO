@@ -12,14 +12,13 @@ from core.feed_processor import (
     load_feed,
 )
 from core.scraper import batch_scrape_asins
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.utils import calculate_completeness
 
 st.set_page_config(page_title="PILO — Data Ingestion", page_icon="\U0001f4e5", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-st.title("Data Ingestion")
-st.caption("Upload your product feed and supplementary data to build PILO's enrichment layers.")
+pattern_page_header("Data Ingestion", "Upload your product feed and supplementary data to build PILO's enrichment layers.")
 
 # ============================================================
 # Layer 1: Primary Product Feed

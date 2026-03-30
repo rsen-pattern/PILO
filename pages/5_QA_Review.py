@@ -3,13 +3,12 @@
 import pandas as pd
 import streamlit as st
 
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 
 st.set_page_config(page_title="PILO — QA Review", page_icon="\u2705", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-st.title("QA Review")
-st.caption("Review, edit, and approve generated content before export.")
+pattern_page_header("QA Review", "Review, edit, and approve generated content before export.")
 
 # Check prerequisites
 if not st.session_state.get("generated_results"):

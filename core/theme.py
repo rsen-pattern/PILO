@@ -302,10 +302,34 @@ div[data-testid="stFileUploader"]:hover {
 """
 
 
+# Compact header logo for above every page title
+PATTERN_PAGE_HEADER_HTML = (
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-top:4px;">'
+    + PATTERN_LOGO_MARK_SVG.format(size="22px")
+    + '<span style="font-size:1em;font-weight:600;color:#FFFFFF;letter-spacing:0.3px;">'
+    'pattern</span>'
+    '<span style="color:#1E293B;font-size:1em;">|</span>'
+    '<span style="font-size:0.9em;font-weight:600;'
+    'background:linear-gradient(135deg,#7C3AED,#06B6D4);'
+    '-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
+    'background-clip:text;">PILO</span>'
+    '</div>'
+)
+
+
 def inject_pattern_css():
     """Inject Pattern brand CSS into the current Streamlit page."""
     import streamlit as st
     st.markdown(PATTERN_CSS, unsafe_allow_html=True)
+
+
+def pattern_page_header(title, caption=None):
+    """Render the Pattern logo above a page title in the main content area."""
+    import streamlit as st
+    st.markdown(PATTERN_PAGE_HEADER_HTML, unsafe_allow_html=True)
+    st.title(title)
+    if caption:
+        st.caption(caption)
 
 
 def pattern_sidebar():

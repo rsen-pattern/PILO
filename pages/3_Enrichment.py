@@ -4,14 +4,13 @@ import pandas as pd
 import streamlit as st
 
 from core.enrichment import get_enrichment_stats, merge_layers
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.utils import calculate_completeness
 
 st.set_page_config(page_title="PILO — Enrichment", page_icon="\U0001f9e9", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-st.title("Enrichment")
-st.caption("Merge all four data layers into a single enriched dataset.")
+pattern_page_header("Enrichment", "Merge all four data layers into a single enriched dataset.")
 
 # Check prerequisites
 if st.session_state.get("feed_df") is None:
@@ -71,16 +70,16 @@ if st.button("Run Enrichment", type="primary") or st.session_state.get("enriched
     st.subheader("Enriched Dataset")
     st.caption("Green = primary feed | Blue = scraped | Orange = cross-retail | Red = missing")
 
-    # Build a styled view
+    # Build a styled view — dark-theme-friendly colours with readable text
     def style_cell(source_val):
         if source_val == "feed":
-            return "background-color: #d4edda"  # green
+            return "background-color: #14532d; color: #bbf7d0"  # dark green bg, light green text
         elif source_val == "scraped":
-            return "background-color: #cce5ff"  # blue
+            return "background-color: #1e3a5f; color: #93c5fd"  # dark blue bg, light blue text
         elif source_val == "crossretail":
-            return "background-color: #fff3cd"  # orange
+            return "background-color: #78350f; color: #fde68a"  # dark amber bg, light amber text
         else:
-            return "background-color: #f8d7da"  # red/empty
+            return "background-color: #3f1219; color: #fca5a5"  # dark red bg, light red text
 
     styled_df = enriched_df.style.apply(
         lambda col: source_map[col.name].map(style_cell) if col.name in source_map.columns else [""] * len(col),

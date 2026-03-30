@@ -12,14 +12,12 @@ from config.model_registry import (
     get_all_bifrost_model_ids,
     get_model_display_name,
 )
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 
 st.set_page_config(page_title="PILO — Settings", page_icon="\u2699\ufe0f", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-
-st.title("Settings")
-st.caption("Configure PILO for your brand, category, and target marketplaces.")
+pattern_page_header("Settings", "Configure PILO for your brand, category, and target marketplaces.")
 
 # Load existing settings
 settings = st.session_state.get("settings", {})
