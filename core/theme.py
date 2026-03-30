@@ -1,39 +1,70 @@
 """Pattern-branded theme for PILO — dark navy + purple/cyan accents."""
 
-# Inline SVG of the Pattern logo mark — two parallel bars at ~45 degrees
-# The mark is two thick rounded rectangles tilted 45 deg (bottom-left to top-right)
-# Left bar sits higher, right bar sits lower, with a clear diagonal gap
-# Cyan (#00BCD4) version for dark backgrounds
-PATTERN_LOGO_MARK_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" '
-    'style="width:{size};height:{size};flex-shrink:0;">'
-    '<rect x="3" y="6" width="8.5" height="24" rx="3" '
-    'transform="rotate(-45 7.25 18)" fill="#00BCD4"/>'
-    '<rect x="13.5" y="6" width="8.5" height="24" rx="3" '
-    'transform="rotate(-45 17.75 18)" fill="#00BCD4"/>'
-    '</svg>'
-)
+import base64
+import os
 
-# Full logo with "pattern" wordmark — for sidebar header
+# ===== Load real Pattern logos from assets/ =====
+
+_ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+
+
+def _logo_data_uri(filename, mime="image/svg+xml"):
+    """Load a logo file from assets/ and return a base64 data URI."""
+    filepath = os.path.join(_ASSETS_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:{mime};base64,{b64}"
+    return ""
+
+
+# Pre-load both versions
+_LOGO_SVG_URI = _logo_data_uri("pattern_logo_blue_white.svg", "image/svg+xml")
+_LOGO_PNG_URI = _logo_data_uri("pattern_logo_white_med (1).png", "image/png")
+_LOGO_URI = _LOGO_SVG_URI or _LOGO_PNG_URI
+
+
+def _logo_img(height="28px"):
+    """Return an HTML <img> tag for the Pattern logo at the specified height."""
+    return (
+        f'<img src="{_LOGO_URI}" alt="Pattern" '
+        f'style="height:{height};width:auto;flex-shrink:0;" />'
+    )
+
+
+# --- HTML snippets used across the app ---
+
+# Sidebar header: full Pattern logo
 PATTERN_FULL_LOGO_HTML = (
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">'
-    + PATTERN_LOGO_MARK_SVG.format(size="28px")
-    + '<span style="font-size:1.35em;font-weight:700;color:#FFFFFF;letter-spacing:0.3px;">'
-    'pattern</span>'
-    '</div>'
+    f'<div style="display:flex;align-items:center;margin-bottom:2px;">'
+    f'{_logo_img("30px")}'
+    f'</div>'
 )
 
-# Compact logo mark only — for favicon area or small placements
-PATTERN_MARK_ONLY_HTML = PATTERN_LOGO_MARK_SVG.format(size="24px")
-
-# Large logo for landing page hero
+# Landing page: large hero logo
 PATTERN_HERO_LOGO_HTML = (
-    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">'
-    + PATTERN_LOGO_MARK_SVG.format(size="44px")
-    + '<span style="font-size:2em;font-weight:700;color:#FFFFFF;letter-spacing:0.5px;">'
-    'pattern</span>'
-    '</div>'
+    f'<div style="display:flex;align-items:center;margin-bottom:8px;">'
+    f'{_logo_img("48px")}'
+    f'</div>'
 )
+
+# Above every page title: logo | PILO
+PATTERN_PAGE_HEADER_HTML = (
+    f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;padding-top:4px;">'
+    f'{_logo_img("22px")}'
+    f'<span style="color:#2D3748;font-size:1em;">|</span>'
+    f'<span style="font-size:0.9em;font-weight:600;'
+    f'background:linear-gradient(135deg,#7C3AED,#06B6D4);'
+    f'-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
+    f'background-clip:text;">PILO</span>'
+    f'</div>'
+)
+
+# Sidebar footer
+_FOOTER_LOGO = _logo_img("14px")
+
+
+# ===== CSS =====
 
 PATTERN_CSS = """
 <style>
@@ -205,20 +236,17 @@ div[data-testid="stAlert"][data-baseweb="notification"] {
     border-radius: 8px !important;
 }
 
-/* Success alerts */
 .stSuccess {
     background-color: rgba(34, 197, 94, 0.1) !important;
     border-left: 4px solid var(--success) !important;
     color: var(--success) !important;
 }
 
-/* Warning alerts */
 .stWarning {
     background-color: rgba(245, 158, 11, 0.1) !important;
     border-left: 4px solid var(--warning) !important;
 }
 
-/* Error alerts */
 .stError {
     background-color: rgba(239, 68, 68, 0.1) !important;
     border-left: 4px solid var(--error) !important;
@@ -228,9 +256,6 @@ div[data-testid="stAlert"][data-baseweb="notification"] {
 hr {
     border-color: var(--border-subtle) !important;
 }
-
-/* ===== Status badge helpers (via markdown) ===== */
-/* Use with st.markdown to create Pattern-style status pills */
 
 /* ===== Slider ===== */
 div[data-testid="stSlider"] > div > div > div {
@@ -253,20 +278,7 @@ div[data-testid="stFileUploader"]:hover {
     border-color: var(--accent-purple) !important;
 }
 
-/* ===== Pattern Logo Area in Sidebar ===== */
-.pattern-logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.pattern-logo svg {
-    width: 24px;
-    height: 24px;
-}
-
-/* ===== Status pill CSS helper ===== */
+/* ===== Status pills ===== */
 .status-pill {
     display: inline-block;
     padding: 2px 10px;
@@ -281,10 +293,7 @@ div[data-testid="stFileUploader"]:hover {
 .status-running { background-color: rgba(59, 130, 246, 0.2); color: #3B82F6; }
 
 /* ===== Completeness gauge ===== */
-.gauge-container {
-    text-align: center;
-    padding: 20px;
-}
+.gauge-container { text-align: center; padding: 20px; }
 .gauge-value {
     font-size: 3em;
     font-weight: 700;
@@ -293,29 +302,12 @@ div[data-testid="stFileUploader"]:hover {
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
-.gauge-label {
-    color: #94A3B8;
-    font-size: 0.9em;
-    margin-top: 4px;
-}
+.gauge-label { color: #94A3B8; font-size: 0.9em; margin-top: 4px; }
 </style>
 """
 
 
-# Compact header logo for above every page title
-PATTERN_PAGE_HEADER_HTML = (
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-top:4px;">'
-    + PATTERN_LOGO_MARK_SVG.format(size="22px")
-    + '<span style="font-size:1em;font-weight:600;color:#FFFFFF;letter-spacing:0.3px;">'
-    'pattern</span>'
-    '<span style="color:#1E293B;font-size:1em;">|</span>'
-    '<span style="font-size:0.9em;font-weight:600;'
-    'background:linear-gradient(135deg,#7C3AED,#06B6D4);'
-    '-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
-    'background-clip:text;">PILO</span>'
-    '</div>'
-)
-
+# ===== Functions =====
 
 def inject_pattern_css():
     """Inject Pattern brand CSS into the current Streamlit page."""
@@ -337,7 +329,7 @@ def pattern_sidebar():
     import streamlit as st
 
     with st.sidebar:
-        # Pattern logo + PILO branding
+        # Pattern logo
         st.markdown(PATTERN_FULL_LOGO_HTML, unsafe_allow_html=True)
         st.markdown(
             '<div style="margin-top:2px;margin-bottom:4px;">'
@@ -375,12 +367,10 @@ def pattern_sidebar():
                 )
 
         st.divider()
-        # Powered by Pattern footer with logo mark
+        # Footer with small logo
         st.markdown(
-            '<div style="display:flex;align-items:center;gap:6px;color:#64748B;font-size:0.75em;">'
-            'Powered by '
-            + PATTERN_LOGO_MARK_SVG.format(size="14px")
-            + '<span style="color:#FFFFFF;font-weight:600;">pattern</span>'
-            '</div>',
+            f'<div style="display:flex;align-items:center;gap:6px;color:#64748B;font-size:0.75em;">'
+            f'Powered by {_FOOTER_LOGO}'
+            f'</div>',
             unsafe_allow_html=True,
         )

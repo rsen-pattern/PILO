@@ -1,4 +1,7 @@
-"""Claude API / Bifrost prompt construction and content generation."""
+"""
+Content generation orchestrator — wraps prompt_chain.py for multi-marketplace runs.
+Maintains backward-compatible helpers for scraping/doc context.
+"""
 
 import json
 import time
@@ -6,129 +9,29 @@ import time
 import streamlit as st
 
 from .utils import get_missing_attributes, parse_json_response, row_to_dict
-
-
-def build_system_prompt(settings):
-    """Build the system prompt from settings."""
-    marketplaces = ", ".join(settings.get("target_marketplace", ["Amazon AU"]))
-
-    return f"""You are PILO, Pattern Intelligence Listing Optimisation — an AI content engine \
-that generates optimised product listings for {marketplaces} marketplace.
-
-BRAND CONTEXT:
-Brand: {settings.get('brand_name', '')}
-Tone of voice: {settings.get('brand_tone', '')}
-Brand rules: {settings.get('brand_rules', '')}
-
-CATEGORY CONTEXT:
-Category: {settings.get('category', '')}
-Category guidelines: {settings.get('category_guidelines', '')}
-
-MARKETPLACE RULES:
-Target: {marketplaces}
-Language: {settings.get('language_variant', 'Australian English')}
-Title character limit: {settings.get('title_char_limit', 200)}
-Bullet point count: {settings.get('bullet_count', 5)}
-Bullet point character limit: {settings.get('bullet_char_limit', 500)} per bullet
-Description character limit: {settings.get('description_char_limit', 2000)}
-
-INSTRUCTIONS:
-You will receive product data from multiple verified sources. Generate optimised content \
-based ONLY on the data provided. Never invent features, specifications, or claims.
-
-For each output field:
-- TITLE: Include brand, key product descriptor, main benefit, key differentiator, and \
-relevant attributes (size, colour, variant). Front-load the most important search terms. \
-Respect the character limit.
-- BULLET POINTS: Each bullet should lead with a BENEFIT then support with a feature. \
-Order thematically: primary use → key features → materials/quality → compatibility/sizing → care/safety. \
-Respect the character limit per bullet.
-- DESCRIPTION: Compelling paragraph(s) that tell the product story. Include use cases, \
-key differentiators, and trust signals. Not a repeat of bullets.
-- SUPPLEMENTARY ATTRIBUTES: For each missing attribute field provided, return an accurate \
-value based on the source data. If you cannot determine a value with confidence, return "NEEDS_REVIEW" \
-rather than guessing.
-
-Respond in JSON format exactly matching this structure:
-{{
-  "title": "...",
-  "bullets": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"],
-  "description": "...",
-  "attributes": {{
-    "attribute_name_1": "value or NEEDS_REVIEW",
-    "attribute_name_2": "value or NEEDS_REVIEW"
-  }}
-}}"""
-
-
-def build_user_prompt(sku_data, missing_attrs, scraped_data=None, crossretail_data=None, doc_context=None):
-    """Build the user prompt for a single SKU."""
-    parts = [
-        "Generate optimised content for this product.",
-        "",
-        "PRODUCT DATA (from verified feed):",
-        json.dumps(sku_data, indent=2, default=str),
-        "",
-        "MISSING ATTRIBUTES TO FILL:",
-        json.dumps(missing_attrs),
-    ]
-
-    if scraped_data:
-        parts.append("")
-        parts.append("SUPPLEMENTARY DATA (from cross-region scraping):")
-        parts.append(json.dumps(scraped_data, indent=2, default=str))
-
-    if crossretail_data:
-        parts.append("")
-        parts.append("SUPPLEMENTARY DATA (from cross-retail sources):")
-        parts.append(json.dumps(crossretail_data, indent=2, default=str))
-
-    if doc_context:
-        parts.append("")
-        parts.append("BRAND DOCUMENTATION CONTEXT:")
-        parts.append(doc_context)
-
-    return "\n".join(parts)
+from .cost_tracker import CostTracker
+from core.prompt_chain import run_chain, build_system_prompt
 
 
 def _create_client(settings):
-    """Create the Bifrost API client.
-
-    Returns (client, model_id) tuple.
-    """
+    """Create the Bifrost API client. Returns (client, model_id)."""
     from openai import OpenAI
 
     api_key = settings.get("bifrost_api_key", "")
     base_url = settings.get("bifrost_base_url", "https://bifrost.pattern.com")
 
     if not api_key:
-        raise ValueError("Bifrost API key is not configured. Please set it in Settings.")
+        raise ValueError("Bifrost API key is not configured. Please set it in Control Centre.")
 
     client = OpenAI(base_url=base_url, api_key=api_key)
     model_id = settings.get("model", "anthropic/claude-sonnet-4-6")
     return client, model_id
 
 
-def generate_content_for_sku(client, model, temperature, system_prompt, user_prompt):
-    """Call the Bifrost API for a single SKU and return parsed result."""
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=4096,
-    )
-    raw_text = response.choices[0].message.content
-    return parse_json_response(raw_text)
-
-
 def get_doc_context_for_sku(sku, ingested_docs):
     """Get relevant document context for a SKU."""
     if not ingested_docs:
         return None
-
     relevant_texts = []
     for doc in ingested_docs:
         applicable = doc.get("applicable_skus", [])
@@ -136,77 +39,48 @@ def get_doc_context_for_sku(sku, ingested_docs):
             relevant_texts.append(
                 f"[{doc['type']} - {doc['filename']}]:\n{doc['text'][:3000]}"
             )
-
     return "\n\n".join(relevant_texts) if relevant_texts else None
 
 
-def get_scraped_data_for_sku(sku, asin, scraped_df):
-    """Get scraped data for a specific SKU/ASIN."""
-    if scraped_df is None or scraped_df.empty:
-        return None
-
-    if "asin" in scraped_df.columns:
-        matches = scraped_df[scraped_df["asin"] == asin]
-        if not matches.empty:
-            return matches.iloc[0].to_dict()
-    return None
-
-
-def get_crossretail_data_for_sku(sku, crossretail_df):
-    """Get cross-retail data for a specific SKU."""
-    if crossretail_df is None or crossretail_df.empty:
-        return None
-
-    if "sku" in crossretail_df.columns:
-        matches = crossretail_df[crossretail_df["sku"] == sku]
-        if not matches.empty:
-            return matches.iloc[0].to_dict()
-    return None
-
-
 def run_generation(enriched_df, settings, selected_skus=None, generate_options=None):
-    """Run content generation for all selected SKUs.
+    """Run multi-marketplace content generation via the prompt chain.
 
-    Args:
-        enriched_df: The enriched product dataframe.
-        settings: Dict of all settings from session state.
-        selected_skus: List of SKUs to process, or None for all.
-        generate_options: Dict of what to generate (title, bullets, description, attributes).
-
-    Returns:
-        Dict of results keyed by SKU, and a list of errors.
+    Returns (results_dict, errors_list, cost_tracker).
+    results_dict is keyed by (sku, marketplace).
     """
     try:
         client, model_id = _create_client(settings)
     except ValueError as e:
         st.error(str(e))
-        return {}, [str(e)]
+        return {}, [str(e)], CostTracker()
 
-    temperature = settings.get("temperature", 0.1)
-    delay = settings.get("api_delay", 0.5)
-    system_prompt = build_system_prompt(settings)
+    marketplaces = settings.get("target_marketplace", ["amazon_au"])
+    if isinstance(marketplaces, str):
+        marketplaces = [marketplaces]
 
-    scraped_df = st.session_state.get("scraped_df")
-    crossretail_df = st.session_state.get("crossretail_df")
-    ingested_docs = st.session_state.get("ingested_docs", [])
+    # Convert display names to keys if needed
+    from config.marketplace_configs import MARKETPLACE_KEY_BY_NAME
+    marketplace_keys = []
+    for mp in marketplaces:
+        key = MARKETPLACE_KEY_BY_NAME.get(mp, mp)
+        marketplace_keys.append(key)
+
+    research_data = st.session_state.get("research_results", {})
+    predict_keywords = st.session_state.get("predict_keywords", {})
+    cost_tracker = CostTracker()
 
     if selected_skus is None:
         selected_skus = enriched_df["sku"].tolist() if "sku" in enriched_df.columns else []
 
     results = {}
     errors = []
-    total = len(selected_skus)
+    total = len(selected_skus) * len(marketplace_keys)
+    current = 0
 
     progress_bar = st.progress(0, text=f"Starting generation via Bifrost ({model_id})...")
     status_container = st.container()
 
-    for i, sku in enumerate(selected_skus):
-        progress_bar.progress(
-            (i) / total,
-            text=f"Generating content for SKU {i + 1} of {total}: {sku}",
-        )
-
-        # Get row data
+    for sku in selected_skus:
         if "sku" in enriched_df.columns:
             row_mask = enriched_df["sku"] == sku
         else:
@@ -214,39 +88,53 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
 
         if not row_mask.any():
             errors.append(f"SKU {sku} not found in enriched data")
+            current += len(marketplace_keys)
             continue
 
         row = enriched_df[row_mask].iloc[0]
-        sku_data = row_to_dict(row)
-        missing_attrs = get_missing_attributes(row)
-        asin = sku_data.get("asin", "")
+        product = row_to_dict(row)
+        sku_research = research_data.get(sku, None)
+        sku_predict = predict_keywords.get(sku, [])
 
-        scraped_data = get_scraped_data_for_sku(sku, asin, scraped_df)
-        crossretail_data = get_crossretail_data_for_sku(sku, crossretail_df)
-        doc_context = get_doc_context_for_sku(sku, ingested_docs)
-
-        user_prompt = build_user_prompt(
-            sku_data, missing_attrs, scraped_data, crossretail_data, doc_context
-        )
-
-        try:
-            result = generate_content_for_sku(
-                client, model_id, temperature, system_prompt, user_prompt
+        for mp_key in marketplace_keys:
+            current += 1
+            progress_bar.progress(
+                min(current / total, 0.99),
+                text=f"Generating {sku} for {mp_key} ({current}/{total})",
             )
-            results[sku] = result
 
-            with status_container:
-                title_preview = result.get("title", "")[:80]
-                attr_count = len([v for v in result.get("attributes", {}).values() if v != "NEEDS_REVIEW"])
-                st.caption(f"**{sku}**: {title_preview}... | {attr_count} attributes filled")
+            def step_callback(step_name, step_num, total_steps):
+                progress_bar.progress(
+                    min(current / total, 0.99),
+                    text=f"{sku} / {mp_key}: Step {step_num}/{total_steps} — {step_name}",
+                )
 
-        except Exception as e:
-            errors.append(f"SKU {sku}: {str(e)}")
-            with status_container:
-                st.caption(f"**{sku}**: Error - {str(e)[:100]}")
+            try:
+                chain_result = run_chain(
+                    client=client,
+                    model=model_id,
+                    product=product,
+                    marketplace_key=mp_key,
+                    settings=settings,
+                    research_data=sku_research,
+                    predict_keywords=sku_predict if isinstance(sku_predict, list) else [],
+                    progress_callback=step_callback,
+                )
+                results[(sku, mp_key)] = chain_result
 
-        if i < total - 1:
-            time.sleep(delay)
+                with status_container:
+                    title_preview = chain_result.get("title", "")[:60]
+                    steps_done = len(chain_result.get("steps_completed", []))
+                    st.caption(f"**{sku}** [{mp_key}]: {title_preview}... ({steps_done} steps)")
+
+                if chain_result.get("errors"):
+                    for err in chain_result["errors"]:
+                        errors.append(f"{sku}/{mp_key}/{err['step']}: {err['error']}")
+
+            except Exception as e:
+                errors.append(f"{sku}/{mp_key}: {str(e)}")
+                with status_container:
+                    st.caption(f"**{sku}** [{mp_key}]: Error - {str(e)[:80]}")
 
     progress_bar.progress(1.0, text="Generation complete!")
-    return results, errors
+    return results, errors, cost_tracker

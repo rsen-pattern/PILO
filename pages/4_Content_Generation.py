@@ -1,155 +1,171 @@
-"""Page 4: Content Generation — Run AI generation via Bifrost or Anthropic."""
+"""Page 4: Content Generation — Multi-marketplace prompt chain with progress matrix."""
 
 import streamlit as st
-
-from core.generator import run_generation
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
-from core.utils import calculate_completeness
+from core.generator import run_generation
+from config.marketplace_configs import MARKETPLACE_CONFIGS, MARKETPLACE_KEY_BY_NAME
 
-st.set_page_config(page_title="PILO — Content Generation", page_icon="\U0001f916", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-pattern_page_header("Content Generation", "Generate optimised product content via Bifrost gateway.")
+pattern_page_header("Content Generation", "AI-powered multi-marketplace content creation")
 
-# Check prerequisites
-if st.session_state.get("enriched_df") is None:
-    st.warning("Please complete Enrichment first.")
+enriched_df = st.session_state.get("enriched_df")
+if enriched_df is None:
+    st.warning("No enriched data available. Complete the Enrichment step first.")
     st.stop()
 
-settings = st.session_state.get("settings", {})
+# ── Configuration summary ──
+marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])
+marketplace_names = [MARKETPLACE_CONFIGS.get(k, {}).get("name", k) for k in marketplace_keys]
+model = st.session_state.get("model", "anthropic/claude-sonnet-4-6")
+keyword_enh = st.session_state.get("keyword_enhancement", True)
 
-if not settings.get("bifrost_api_key"):
-    st.warning("Bifrost API key is not configured. Please set it in Settings.")
-    st.stop()
-
-enriched_df = st.session_state["enriched_df"]
-
-# --- Pre-Generation Setup ---
-st.subheader("Generation Setup")
-
+st.subheader("Generation Configuration")
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric("SKUs Available", len(enriched_df))
+    st.write(f"**Model:** {model}")
+    st.write(f"**Temperature:** {st.session_state.get('temperature', 0.1)}")
 with col2:
-    model_display = settings.get("model", "anthropic/claude-sonnet-4-6")
-    if "/" in model_display:
-        model_display = model_display.split("/")[1]
-    st.metric("Model", model_display)
+    st.write(f"**Marketplaces:** {', '.join(marketplace_names)}")
+    st.write(f"**Keyword Enhancement:** {'On' if keyword_enh else 'Off'}")
 with col3:
-    marketplaces = ", ".join(settings.get("target_marketplace", []))
-    st.metric("Marketplaces", marketplaces or "Not set")
+    st.write(f"**Products:** {len(enriched_df)}")
+    total_runs = len(enriched_df) * len(marketplace_keys)
+    st.write(f"**Total Chain Runs:** {total_runs}")
 
-st.markdown(
-    f'<div style="background:#141B2D;border:1px solid #1E293B;border-radius:8px;padding:12px 16px;'
-    f'color:#94A3B8;font-size:0.9em;">API Backend: '
-    f'<span style="color:#7C3AED;font-weight:600;">Bifrost Gateway</span> | '
-    f'Model: <span style="color:#06B6D4;font-weight:600;">{settings.get("model", "N/A")}</span></div>',
-    unsafe_allow_html=True,
-)
-
-# What to generate
-st.subheader("Content to Generate")
-col1, col2 = st.columns(2)
-with col1:
-    gen_title = st.checkbox("Optimised Title", value=True)
-    gen_bullets = st.checkbox(f"Bullet Points ({settings.get('bullet_count', 5)})", value=True)
-with col2:
-    gen_description = st.checkbox("Product Description", value=True)
-    gen_attributes = st.checkbox("Supplementary Attributes (fill missing)", value=True)
-
-# SKU selection
-st.subheader("SKU Selection")
-sku_mode = st.radio(
-    "Select SKUs to process",
-    ["All SKUs", "Only SKUs below completeness threshold", "Specific SKUs"],
-    horizontal=True,
-)
-
-sku_list = enriched_df["sku"].tolist() if "sku" in enriched_df.columns else []
-
-selected_skus = sku_list
-if sku_mode == "Only SKUs below completeness threshold":
-    threshold = st.slider("Completeness threshold (%)", 0, 100, 70)
-    selected_skus = []
-    for _, row in enriched_df.iterrows():
-        row_df = row.to_frame().T
-        comp = calculate_completeness(row_df)
-        if comp < threshold:
-            selected_skus.append(row.get("sku"))
-    st.info(f"{len(selected_skus)} SKUs below {threshold}% completeness")
-
-elif sku_mode == "Specific SKUs":
-    selected_skus = st.multiselect("Select SKUs", sku_list, default=sku_list)
-
-# Cap at 50
-MAX_SKUS = 50
-if len(selected_skus) > MAX_SKUS:
-    st.warning(
-        f"Feed has {len(selected_skus)} SKUs. For MVP, processing is capped at {MAX_SKUS} SKUs "
-        f"to manage API costs. The first {MAX_SKUS} SKUs will be processed."
-    )
-    selected_skus = selected_skus[:MAX_SKUS]
-
-st.info(f"**{len(selected_skus)} SKUs** will be processed")
-
-# --- Generate ---
 st.divider()
 
-if st.button("Generate Content", type="primary", disabled=len(selected_skus) == 0):
-    generate_options = {
-        "title": gen_title,
-        "bullets": gen_bullets,
-        "description": gen_description,
-        "attributes": gen_attributes,
-    }
+# ── SKU selection ──
+st.subheader("SKU Selection")
+selection_mode = st.radio(
+    "Select SKUs to generate",
+    ["All SKUs", "Below completeness threshold", "Specific SKUs"],
+    horizontal=True, key="sku_sel_mode",
+)
 
-    results, errors = run_generation(
-        enriched_df, settings, selected_skus, generate_options
+selected_skus = []
+if "sku" in enriched_df.columns:
+    all_skus = enriched_df["sku"].tolist()
+
+    if selection_mode == "All SKUs":
+        selected_skus = all_skus
+
+    elif selection_mode == "Below completeness threshold":
+        from core.utils import calculate_completeness
+        threshold = st.slider("Completeness Threshold (%)", 0, 100, 80, key="comp_thresh")
+        for sku in all_skus:
+            row = enriched_df[enriched_df["sku"] == sku].iloc[0]
+            filled = sum(1 for v in row if str(v).strip() not in ("", "nan", "None"))
+            pct = (filled / len(row)) * 100
+            if pct < threshold:
+                selected_skus.append(sku)
+        st.write(f"**{len(selected_skus)}** SKUs below {threshold}% completeness")
+
+    elif selection_mode == "Specific SKUs":
+        selected_skus = st.multiselect("Select SKUs", all_skus, default=all_skus[:5], key="sku_multi")
+
+# Cap at 50
+if len(selected_skus) > 50:
+    st.warning(f"Capping at 50 SKUs (from {len(selected_skus)}). Select fewer for larger batches.")
+    selected_skus = selected_skus[:50]
+
+st.write(f"**{len(selected_skus)} SKUs** x **{len(marketplace_keys)} marketplaces** = "
+         f"**{len(selected_skus) * len(marketplace_keys)} chain runs**")
+
+# ── Chain steps preview ──
+with st.expander("Prompt Chain Steps"):
+    for mp_key in marketplace_keys:
+        cfg = MARKETPLACE_CONFIGS.get(mp_key, {})
+        steps = []
+        if keyword_enh:
+            steps.append("1. Keyword Generation")
+        steps.append(f"{'2' if keyword_enh else '1'}. Title Generation (≤{cfg.get('title', {}).get('char_limit', 200)} chars)")
+        bc = cfg.get("bullets", {}).get("count", 0)
+        if bc > 0:
+            steps.append(f"{'3' if keyword_enh else '2'}. Bullet Points (x{bc})")
+        steps.append(f"{'4' if keyword_enh else '3'}. Description (≤{cfg.get('description', {}).get('char_limit', 2000)} chars)")
+        steps.append(f"{'5' if keyword_enh else '4'}. Attributes")
+        if cfg.get("special_features_count", 0) > 0:
+            steps.append(f"{'6' if keyword_enh else '5'}. Special Features (x{cfg['special_features_count']})")
+        steps.append(f"{'7' if keyword_enh else '6'}. Item Type Classification")
+        st.write(f"**{cfg.get('name', mp_key)}:**")
+        for s in steps:
+            st.write(f"  {s}")
+
+st.divider()
+
+# ── Generate button ──
+if st.button("Generate Content", type="primary", use_container_width=True,
+             disabled=len(selected_skus) == 0):
+
+    settings = dict(st.session_state)
+    results, errors, cost_tracker = run_generation(
+        enriched_df=enriched_df,
+        settings=settings,
+        selected_skus=selected_skus,
     )
 
     st.session_state["generated_results"] = results
     st.session_state["generation_errors"] = errors
+    st.session_state["cost_tracker"] = cost_tracker
 
-    st.rerun()
-
-# --- Post-Generation Summary ---
-if st.session_state.get("generated_results"):
-    results = st.session_state["generated_results"]
-    errors = st.session_state.get("generation_errors", [])
-
-    st.divider()
-    st.subheader("Generation Summary")
-
-    titles_count = sum(1 for r in results.values() if r.get("title"))
-    bullets_count = sum(1 for r in results.values() if r.get("bullets"))
-    desc_count = sum(1 for r in results.values() if r.get("description"))
-    attrs_filled = sum(
-        sum(1 for v in r.get("attributes", {}).values() if v and v != "NEEDS_REVIEW")
-        for r in results.values()
-    )
-    needs_review = sum(
-        sum(1 for v in r.get("attributes", {}).values() if v == "NEEDS_REVIEW")
-        for r in results.values()
-    )
-    time_saved_hours = round(len(results) * 15 / 60, 1)
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("SKUs Processed", len(results))
-        st.metric("Titles Generated", titles_count)
-    with col2:
-        st.metric("Bullet Sets Generated", bullets_count)
-        st.metric("Descriptions Generated", desc_count)
-    with col3:
-        st.metric("Attributes Filled", attrs_filled)
-        st.metric("NEEDS_REVIEW Items", needs_review)
-    with col4:
-        st.metric("API Errors", len(errors))
-        st.metric("Est. Time Saved", f"{time_saved_hours} hrs")
-
+    st.success(f"Generated content for {len(results)} SKU×marketplace combinations.")
     if errors:
-        with st.expander("Errors"):
+        with st.expander(f"{len(errors)} Errors"):
             for err in errors:
                 st.error(err)
 
-    st.success("Content generation complete! Proceed to QA Review.")
+# ── Results preview ──
+results = st.session_state.get("generated_results", {})
+if results:
+    st.divider()
+    st.subheader("Generation Results")
+
+    # Progress matrix: SKUs down, marketplaces across
+    if len(marketplace_keys) > 1:
+        st.caption("Progress Matrix: SKUs × Marketplaces")
+        matrix_data = []
+        for sku in selected_skus if selected_skus else []:
+            row_data = {"SKU": sku}
+            for mp_key in marketplace_keys:
+                key = (sku, mp_key)
+                if key in results:
+                    r = results[key]
+                    steps = len(r.get("steps_completed", []))
+                    errs = len(r.get("errors", []))
+                    if errs > 0:
+                        row_data[mp_key] = f"⚠️ {steps} steps ({errs} errors)"
+                    else:
+                        row_data[mp_key] = f"✅ {steps} steps"
+                else:
+                    row_data[mp_key] = "—"
+            matrix_data.append(row_data)
+
+        import pandas as pd
+        st.dataframe(pd.DataFrame(matrix_data), use_container_width=True, hide_index=True)
+
+    # Sample preview
+    st.subheader("Content Preview")
+    preview_keys = list(results.keys())[:5]
+    for key in preview_keys:
+        sku, mp = key
+        r = results[key]
+        mp_name = MARKETPLACE_CONFIGS.get(mp, {}).get("name", mp)
+        with st.expander(f"{sku} — {mp_name}"):
+            if r.get("title"):
+                st.write(f"**Title** ({len(r['title'])} chars): {r['title']}")
+            if r.get("bullets"):
+                st.write("**Bullets:**")
+                for i, b in enumerate(r["bullets"], 1):
+                    st.write(f"  {i}. {b}")
+            if r.get("description"):
+                st.write(f"**Description** ({len(r['description'])} chars):")
+                st.caption(r["description"][:300] + "..." if len(r["description"]) > 300 else r["description"])
+            if r.get("attributes"):
+                st.write(f"**Attributes:** {len(r['attributes'])} filled")
+            if r.get("errors"):
+                for err in r["errors"]:
+                    st.error(f"Step '{err['step']}': {err['error']}")
+
+    st.divider()
+    st.success(f"Content generated! Proceed to QA Review.")
