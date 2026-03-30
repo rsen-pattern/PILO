@@ -135,13 +135,13 @@ with st.expander("Title Structure & Rules"):
     title_structure = st.text_input(
         "Title Structure",
         value=primary_cfg.get("title", {}).get("structure", "") if primary_cfg else "",
-        key="title_struct",
+        key="w_title_struct",
     )
     st.session_state["title_structure"] = title_structure
     title_rules = st.text_area(
         "Title Rules",
         value=primary_cfg.get("title", {}).get("rules", "") if primary_cfg else "",
-        key="title_rules",
+        key="w_title_rules",
     )
     st.session_state["title_rules"] = title_rules
 
@@ -149,7 +149,7 @@ with st.expander("Description Rules"):
     desc_rules = st.text_area(
         "Description Rules",
         value=primary_cfg.get("description", {}).get("rules", "") if primary_cfg else "",
-        key="desc_rules",
+        key="w_desc_rules",
     )
     st.session_state["description_rules"] = desc_rules
 
