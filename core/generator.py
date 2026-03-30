@@ -1,9 +1,8 @@
-"""Claude API prompt construction and content generation."""
+"""Claude API / Bifrost prompt construction and content generation."""
 
 import json
 import time
 
-import anthropic
 import streamlit as st
 
 from .utils import get_missing_attributes, parse_json_response, row_to_dict
@@ -92,17 +91,64 @@ def build_user_prompt(sku_data, missing_attrs, scraped_data=None, crossretail_da
     return "\n".join(parts)
 
 
-def generate_content_for_sku(client, model, temperature, system_prompt, user_prompt):
-    """Call the Claude API for a single SKU and return parsed result."""
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        temperature=temperature,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+def _create_client(settings):
+    """Create the appropriate API client based on settings.
 
-    raw_text = response.content[0].text
+    Returns (client, model_id, backend_type) tuple.
+    """
+    backend = settings.get("api_backend", "anthropic")
+
+    if backend == "bifrost":
+        from openai import OpenAI
+
+        api_key = settings.get("bifrost_api_key", "")
+        base_url = settings.get("bifrost_base_url", "https://bifrost.pattern.com")
+
+        if not api_key:
+            raise ValueError("Bifrost API key is not configured. Please set it in Settings.")
+
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        model_id = settings.get("model", "anthropic/claude-sonnet-4-6")
+        return client, model_id, "bifrost"
+
+    else:
+        import anthropic
+
+        api_key = settings.get("anthropic_api_key", "")
+        if not api_key:
+            raise ValueError("Anthropic API key is not configured. Please set it in Settings.")
+
+        client = anthropic.Anthropic(api_key=api_key)
+        model_id = settings.get("model", "claude-sonnet-4-20250514")
+        return client, model_id, "anthropic"
+
+
+def generate_content_for_sku(client, model, temperature, system_prompt, user_prompt, backend="anthropic"):
+    """Call the AI API for a single SKU and return parsed result."""
+
+    if backend == "bifrost":
+        # OpenAI-compatible API via Bifrost
+        response = client.chat.completions.create(
+            model=model,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=4096,
+        )
+        raw_text = response.choices[0].message.content
+    else:
+        # Direct Anthropic SDK
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            temperature=temperature,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        raw_text = response.content[0].text
+
     return parse_json_response(raw_text)
 
 
@@ -158,16 +204,14 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
     Returns:
         Dict of results keyed by SKU, and a list of errors.
     """
-    api_key = settings.get("anthropic_api_key", "")
-    if not api_key:
-        st.error("Anthropic API key is not configured. Please set it in Settings.")
-        return {}, ["No API key"]
+    try:
+        client, model_id, backend = _create_client(settings)
+    except ValueError as e:
+        st.error(str(e))
+        return {}, [str(e)]
 
-    client = anthropic.Anthropic(api_key=api_key)
-    model = settings.get("model", "claude-sonnet-4-20250514")
     temperature = settings.get("temperature", 0.1)
     delay = settings.get("api_delay", 0.5)
-
     system_prompt = build_system_prompt(settings)
 
     scraped_df = st.session_state.get("scraped_df")
@@ -181,11 +225,15 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
     errors = []
     total = len(selected_skus)
 
-    progress_bar = st.progress(0, text="Starting generation...")
+    backend_label = "Bifrost" if backend == "bifrost" else "Anthropic"
+    progress_bar = st.progress(0, text=f"Starting generation via {backend_label} ({model_id})...")
     status_container = st.container()
 
     for i, sku in enumerate(selected_skus):
-        progress_bar.progress((i) / total, text=f"Generating content for SKU {i+1} of {total}: {sku}")
+        progress_bar.progress(
+            (i) / total,
+            text=f"Generating content for SKU {i + 1} of {total}: {sku}",
+        )
 
         # Get row data
         if "sku" in enriched_df.columns:
@@ -211,7 +259,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         )
 
         try:
-            result = generate_content_for_sku(client, model, temperature, system_prompt, user_prompt)
+            result = generate_content_for_sku(
+                client, model_id, temperature, system_prompt, user_prompt, backend
+            )
             results[sku] = result
 
             with status_container:
