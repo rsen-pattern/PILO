@@ -40,12 +40,42 @@ with col1:
     )
 
 if uploaded:
+    # Header row selection
     try:
-        df, fmt, metadata = load_feed(uploaded)
+        # Read raw to show preview for header selection
+        raw_preview = None
+        if uploaded.name.lower().endswith(".csv"):
+            raw_preview = pd.read_csv(uploaded, nrows=10, header=None)
+        elif uploaded.name.lower().endswith((".xlsx", ".xls")):
+            raw_preview = pd.read_excel(uploaded, nrows=10, header=None)
+        uploaded.seek(0)
+
+        if raw_preview is not None:
+            with st.expander("Header Row Selection", expanded=False):
+                st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
+                st.dataframe(raw_preview, use_container_width=True, hide_index=False)
+                header_row = st.number_input(
+                    "Header row (0-indexed)",
+                    min_value=0,
+                    max_value=max(0, len(raw_preview) - 1),
+                    value=st.session_state.get("feed_header_row", 0),
+                    step=1,
+                    key="header_row_in",
+                    help="Row 0 = first row. Amazon flat files typically use row 0 or 2.",
+                )
+                st.session_state["feed_header_row"] = header_row
+        else:
+            header_row = 0
+    except Exception:
+        header_row = 0
+        uploaded.seek(0)
+
+    try:
+        df, fmt, metadata = load_feed(uploaded, header_row=header_row)
         st.session_state["feed_df"] = df
         st.session_state["feed_format"] = fmt
         st.session_state["feed_metadata"] = metadata
-        st.success(f"Loaded {len(df)} products ({fmt})")
+        st.success(f"Loaded {len(df)} products ({fmt}) — header row: {header_row}")
     except Exception as e:
         st.error(f"Error loading file: {e}")
 
