@@ -182,21 +182,43 @@ EXPORTER_MAP = {
 }
 
 
-def parse_file(file_bytes: bytes, filename: str, detected_format: str = None) -> pd.DataFrame:
-    """Parse a file using the appropriate handler. Auto-detects if format not specified."""
+def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
+               header_row: int = 0) -> pd.DataFrame:
+    """Parse a file using the appropriate handler. Auto-detects if format not specified.
+
+    Args:
+        file_bytes: Raw file content.
+        filename: Original filename (used for format hints).
+        detected_format: Pre-detected format string (auto-detects if None).
+        header_row: Which row to use as column header (0-indexed).
+            When header_row > 0 and format is 'standard', the specified row
+            is used as headers and earlier rows are skipped. For marketplace-
+            specific formats (Amazon flat file etc.), their native parsers
+            are used by default — set header_row > 0 to override.
+    """
     if detected_format is None:
-        # Quick detection from raw load
         if filename.endswith(".csv"):
             raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
         else:
             raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
         detected_format = detect_file_format(raw, filename)
 
+    # If user explicitly set a custom header row, use generic parsing with that row
+    if header_row > 0:
+        if filename.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(file_bytes), header=None)
+        else:
+            df = pd.read_excel(io.BytesIO(file_bytes), header=None)
+        if header_row < len(df):
+            df.columns = df.iloc[header_row].astype(str).tolist()
+            df = df.iloc[header_row + 1:].reset_index(drop=True)
+        return df
+
     parser = PARSER_MAP.get(detected_format)
     if parser:
         return parser(file_bytes, filename)
 
-    # Standard format
+    # Standard format (header_row == 0)
     if filename.endswith(".csv"):
         return pd.read_csv(io.BytesIO(file_bytes))
     return pd.read_excel(io.BytesIO(file_bytes))

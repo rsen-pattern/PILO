@@ -67,6 +67,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
 
     research_data = st.session_state.get("research_results", {})
     predict_keywords = st.session_state.get("predict_keywords", {})
+    ingested_docs = st.session_state.get("ingested_docs", [])
+    scraped_df = st.session_state.get("scraped_df")
+    crossretail_df = st.session_state.get("crossretail_df")
     cost_tracker = CostTracker()
 
     if selected_skus is None:
@@ -96,6 +99,23 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         sku_research = research_data.get(sku, None)
         sku_predict = predict_keywords.get(sku, [])
 
+        # Gather scraped data for this SKU
+        sku_scraped = None
+        if scraped_df is not None and "sku" in scraped_df.columns:
+            scraped_mask = scraped_df["sku"] == sku
+            if scraped_mask.any():
+                sku_scraped = row_to_dict(scraped_df[scraped_mask].iloc[0])
+
+        # Gather crossretail data for this SKU
+        sku_crossretail = None
+        if crossretail_df is not None and "sku" in crossretail_df.columns:
+            cr_mask = crossretail_df["sku"] == sku
+            if cr_mask.any():
+                sku_crossretail = row_to_dict(crossretail_df[cr_mask].iloc[0])
+
+        # Gather document context for this SKU
+        sku_doc_context = get_doc_context_for_sku(sku, ingested_docs)
+
         for mp_key in marketplace_keys:
             current += 1
             progress_bar.progress(
@@ -118,6 +138,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
                     settings=settings,
                     research_data=sku_research,
                     predict_keywords=sku_predict if isinstance(sku_predict, list) else [],
+                    scraped_data=sku_scraped,
+                    document_context=sku_doc_context,
+                    crossretail_data=sku_crossretail,
                     progress_callback=step_callback,
                 )
                 results[(sku, mp_key)] = chain_result

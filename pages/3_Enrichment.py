@@ -45,12 +45,14 @@ for sku, res in research_results.items():
             ai_research_data[sku] = flat
 
 # ── Run merge ──
+overwrite = st.session_state.get("enrichment_overwrite", False)
 if st.button("Run Enrichment Merge", type="primary"):
     enriched_df, source_map = merge_layers(
         feed_df=feed_df,
         scraped_df=scraped_df,
         crossretail_df=crossretail_df,
         ai_research_data=ai_research_data if ai_research_data else None,
+        overwrite=overwrite,
     )
     st.session_state["enriched_df"] = enriched_df
     st.session_state["source_map"] = source_map
@@ -188,6 +190,30 @@ if "sku" in enriched_df.columns:
                 st.info(f"AI Research Confidence: {badge} {conf:.2f}")
                 if sku_research.get("research", {}).get("product_summary"):
                     st.caption(sku_research["research"]["product_summary"])
+
+# ── CSV Export ──
+st.divider()
+st.subheader("Export Enriched Data")
+col_exp1, col_exp2 = st.columns(2)
+with col_exp1:
+    csv_data = enriched_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download Enriched CSV",
+        data=csv_data,
+        file_name="pilo_enriched_data.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+with col_exp2:
+    if source_map is not None:
+        source_csv = source_map.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download Source Map CSV",
+            data=source_csv,
+            file_name="pilo_source_map.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
 st.divider()
 st.success(f"Enriched dataset ready: {len(enriched_df)} products at {stats['completeness_after']:.0f}% completeness. Proceed to Content Generation.")

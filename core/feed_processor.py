@@ -17,8 +17,14 @@ STANDARD_FIELDS = [
 ]
 
 
-def load_feed(uploaded_file):
+def load_feed(uploaded_file, header_row=0):
     """Load a CSV or Excel file with smart format detection.
+
+    Args:
+        uploaded_file: Streamlit UploadedFile.
+        header_row: Which row to use as the column header (0-indexed).
+            Default 0 uses the first row. Set to e.g. 2 for Amazon flat files
+            with 3-row headers.
 
     Returns (df, detected_format, format_metadata).
     """
@@ -26,7 +32,7 @@ def load_feed(uploaded_file):
     file_bytes = uploaded_file.read()
     uploaded_file.seek(0)
 
-    # Quick detection pass
+    # Quick detection pass (always uses raw, no header)
     if name.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
     elif name.endswith((".xlsx", ".xls")):
@@ -36,8 +42,8 @@ def load_feed(uploaded_file):
 
     detected_format = detect_file_format(raw, name)
 
-    # Parse with appropriate handler
-    df = parse_file(file_bytes, name, detected_format)
+    # Parse with appropriate handler, respecting user's header_row choice
+    df = parse_file(file_bytes, name, detected_format, header_row=header_row)
 
     format_metadata = {
         "format": detected_format,
@@ -45,6 +51,7 @@ def load_feed(uploaded_file):
         "original_bytes": file_bytes,
         "rows": len(df),
         "columns": len(df.columns),
+        "header_row": header_row,
     }
 
     return df, detected_format, format_metadata

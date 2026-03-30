@@ -61,15 +61,24 @@ with col1:
     brand_name = st.text_input("Brand Name", value=st.session_state.get("brand_name", ""), key="brand_in")
     st.session_state["brand_name"] = brand_name
 with col2:
+    tone_options = ["Professional", "Friendly", "Premium", "Technical", "Playful", "Minimalist"]
     brand_tone = st.selectbox(
         "Brand Tone of Voice",
-        ["Professional", "Friendly", "Premium", "Technical", "Playful", "Minimalist"],
-        index=["Professional", "Friendly", "Premium", "Technical", "Playful", "Minimalist"].index(
-            st.session_state.get("brand_tone", "Professional")
-        ),
+        tone_options,
+        index=tone_options.index(st.session_state.get("brand_tone", "Professional")),
         key="tone_in",
     )
     st.session_state["brand_tone"] = brand_tone
+
+brand_tov = st.text_area(
+    "Brand Tone of Voice — Detail",
+    value=st.session_state.get("brand_tov", ""),
+    placeholder="Describe the brand voice in detail: e.g. 'Warm but authoritative. Use short, punchy sentences. "
+                "Avoid jargon. Speak directly to pet owners as fellow animal lovers.'",
+    key="tov_in",
+    height=100,
+)
+st.session_state["brand_tov"] = brand_tov
 
 brand_rules = st.text_area(
     "Brand Rules / Guidelines",
@@ -78,6 +87,16 @@ brand_rules = st.text_area(
     key="rules_in",
 )
 st.session_state["brand_rules"] = brand_rules
+
+brand_limitations = st.text_area(
+    "Brand Limitations / Restrictions",
+    value=st.session_state.get("brand_limitations", ""),
+    placeholder="e.g. Do not mention competitors by name. Never claim 'best' or '#1'. "
+                "Do not reference animal testing. Avoid words: cheap, budget, discount.",
+    key="limitations_in",
+    height=100,
+)
+st.session_state["brand_limitations"] = brand_limitations
 
 # Category
 categories = list(CATEGORY_GUIDELINES.keys())
@@ -90,6 +109,15 @@ category = st.selectbox(
 )
 st.session_state["category"] = category
 st.session_state["category_guidelines"] = CATEGORY_GUIDELINES.get(category, "")
+
+category_override = st.text_area(
+    "Category Guidelines Override",
+    value=st.session_state.get("category_guidelines_override", ""),
+    placeholder="Override or supplement the default category guidelines with custom instructions.",
+    key="cat_override_in",
+    height=80,
+)
+st.session_state["category_guidelines_override"] = category_override
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1C — Title / Bullet / Description / Attribute Configuration
@@ -199,6 +227,42 @@ confidence_threshold = st.slider(
     key="conf_thresh",
 )
 st.session_state["confidence_threshold"] = confidence_threshold
+
+col1, col2 = st.columns(2)
+with col1:
+    api_delay = st.number_input(
+        "API Rate Limit Delay (seconds)",
+        0.0, 10.0,
+        value=float(st.session_state.get("api_rate_delay", 0.3)),
+        step=0.1,
+        help="Delay between API calls to avoid rate limiting",
+        key="api_delay_in",
+    )
+    st.session_state["api_rate_delay"] = api_delay
+with col2:
+    enrichment_overwrite = st.checkbox(
+        "Enrichment Overwrites Feed Data",
+        value=st.session_state.get("enrichment_overwrite", False),
+        help="When ON, scraped/research data overwrites existing feed values. When OFF, only fills blanks.",
+        key="overwrite_chk",
+    )
+    st.session_state["enrichment_overwrite"] = enrichment_overwrite
+
+# Selective generation
+st.subheader("Content Generation Toggles")
+gen_cols = st.columns(4)
+with gen_cols[0]:
+    gen_title = st.checkbox("Generate Titles", value=st.session_state.get("generate_titles", True), key="gen_title_chk")
+    st.session_state["generate_titles"] = gen_title
+with gen_cols[1]:
+    gen_bullets = st.checkbox("Generate Bullets", value=st.session_state.get("generate_bullets", True), key="gen_bullets_chk")
+    st.session_state["generate_bullets"] = gen_bullets
+with gen_cols[2]:
+    gen_desc = st.checkbox("Generate Descriptions", value=st.session_state.get("generate_descriptions", True), key="gen_desc_chk")
+    st.session_state["generate_descriptions"] = gen_desc
+with gen_cols[3]:
+    gen_attrs = st.checkbox("Generate Attributes", value=st.session_state.get("generate_attributes", True), key="gen_attrs_chk")
+    st.session_state["generate_attributes"] = gen_attrs
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1E — Output Format
@@ -320,6 +384,101 @@ with col2:
         type="password", key="skey_in",
     )
     st.session_state["scrapingbee_api_key"] = skey
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 1H — ScrapingBee Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+st.header("8. ScrapingBee Configuration")
+st.caption("Controls for web scraping via ScrapingBee API — used for Amazon product scraping and external website scraping.")
+
+if not skey:
+    st.info("Enter a ScrapingBee API key above to enable web scraping features.")
+
+sb_col1, sb_col2 = st.columns(2)
+with sb_col1:
+    sb_render_js = st.checkbox(
+        "Render JavaScript",
+        value=st.session_state.get("sb_render_js", True),
+        help="Enable JS rendering for dynamic pages (uses more credits)",
+        key="sb_js_chk",
+    )
+    st.session_state["sb_render_js"] = sb_render_js
+
+    sb_premium_proxy = st.checkbox(
+        "Premium Proxy",
+        value=st.session_state.get("sb_premium_proxy", True),
+        help="Use premium residential proxies (better success rate, more credits)",
+        key="sb_premium_chk",
+    )
+    st.session_state["sb_premium_proxy"] = sb_premium_proxy
+
+with sb_col2:
+    sb_timeout = st.number_input(
+        "Request Timeout (seconds)",
+        5, 120,
+        value=int(st.session_state.get("sb_timeout", 30)),
+        step=5,
+        help="Timeout per scraping request",
+        key="sb_timeout_in",
+    )
+    st.session_state["sb_timeout"] = sb_timeout
+
+    sb_concurrency = st.number_input(
+        "Max Concurrent Requests",
+        1, 10,
+        value=int(st.session_state.get("sb_concurrency", 1)),
+        step=1,
+        help="Number of simultaneous scraping requests",
+        key="sb_concur_in",
+    )
+    st.session_state["sb_concurrency"] = sb_concurrency
+
+sb_col3, sb_col4 = st.columns(2)
+with sb_col3:
+    sb_country = st.selectbox(
+        "Default Proxy Country",
+        ["Auto (match marketplace)", "us", "gb", "au", "de", "fr", "jp", "ca"],
+        index=0,
+        key="sb_country_in",
+    )
+    st.session_state["sb_country"] = sb_country
+
+with sb_col4:
+    sb_scrape_delay = st.number_input(
+        "Delay Between Scrapes (seconds)",
+        0.0, 30.0,
+        value=float(st.session_state.get("sb_scrape_delay", 1.0)),
+        step=0.5,
+        help="Delay between individual scrape requests to avoid rate limits",
+        key="sb_delay_in",
+    )
+    st.session_state["sb_scrape_delay"] = sb_scrape_delay
+
+with st.expander("ScrapingBee Advanced Settings"):
+    sb_block_ads = st.checkbox(
+        "Block Ads & Trackers",
+        value=st.session_state.get("sb_block_ads", True),
+        help="Block ads and tracking scripts for faster page loads",
+        key="sb_ads_chk",
+    )
+    st.session_state["sb_block_ads"] = sb_block_ads
+
+    sb_block_resources = st.checkbox(
+        "Block Images & CSS",
+        value=st.session_state.get("sb_block_resources", False),
+        help="Block images and CSS for faster scraping (text-only extraction)",
+        key="sb_resources_chk",
+    )
+    st.session_state["sb_block_resources"] = sb_block_resources
+
+    sb_custom_headers = st.text_area(
+        "Custom Headers (JSON)",
+        value=st.session_state.get("sb_custom_headers", ""),
+        placeholder='e.g. {"Accept-Language": "en-AU"}',
+        key="sb_headers_in",
+        height=60,
+    )
+    st.session_state["sb_custom_headers"] = sb_custom_headers
 
 # ── Save confirmation ──
 st.divider()

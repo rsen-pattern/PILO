@@ -42,6 +42,9 @@ def build_system_prompt(marketplace_key: str) -> str:
 def run_chain(client, model: str, product: dict, marketplace_key: str,
               settings: dict, research_data: dict = None,
               predict_keywords: list = None,
+              scraped_data: dict = None,
+              document_context: str = None,
+              crossretail_data: dict = None,
               progress_callback=None) -> dict:
     """Run the full prompt chain for one SKU × one marketplace.
 
@@ -53,6 +56,9 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
         settings: user settings dict
         research_data: optional pre-computed research for this product
         predict_keywords: optional list of Predict keyword dicts
+        scraped_data: optional dict of scraped product data for this SKU
+        document_context: optional string of relevant document text for this SKU
+        crossretail_data: optional dict of cross-retail data for this SKU
         progress_callback: optional callable(step_name, step_num, total_steps)
 
     Returns:
@@ -61,7 +67,14 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     cfg = get_config(marketplace_key)
     system_prompt = build_system_prompt(marketplace_key)
     temperature = settings.get("temperature", 0.1)
+    api_delay = settings.get("api_rate_delay", 0.3)
     keyword_enhancement = settings.get("keyword_enhancement", True)
+
+    # Selective generation toggles
+    generate_titles = settings.get("generate_titles", True)
+    generate_bullets = settings.get("generate_bullets", True)
+    generate_descriptions = settings.get("generate_descriptions", True)
+    generate_attributes = settings.get("generate_attributes", True)
 
     result = {
         "marketplace": marketplace_key,
@@ -76,15 +89,28 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     if research_data and research_data.get("research"):
         research_str = json.dumps(research_data["research"], indent=2)
 
-    # Determine which steps to run
+    # Build supplementary context from all data sources
+    supplementary_context = _build_supplementary_context(
+        scraped_data=scraped_data,
+        document_context=document_context,
+        crossretail_data=crossretail_data,
+        brand_tov=settings.get("brand_tov", ""),
+        brand_limitations=settings.get("brand_limitations", ""),
+        category_guidelines_override=settings.get("category_guidelines_override", ""),
+    )
+
+    # Determine which steps to run (respecting selective generation toggles)
     steps = []
     if keyword_enhancement:
         steps.append("keywords")
-    steps.append("title")
-    if marketplace_supports_bullets(marketplace_key):
+    if generate_titles:
+        steps.append("title")
+    if generate_bullets and marketplace_supports_bullets(marketplace_key):
         steps.append("bullets")
-    steps.append("description")
-    steps.append("attributes")
+    if generate_descriptions:
+        steps.append("description")
+    if generate_attributes:
+        steps.append("attributes")
     if marketplace_supports_special_features(marketplace_key):
         steps.append("special_features")
     steps.append("item_type")
@@ -101,6 +127,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                 keywords_result = _run_keywords(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, predict_keywords,
+                    supplementary_context,
                 )
                 result["keywords"] = keywords_result
                 result["steps_completed"].append("keywords")
@@ -116,6 +143,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                 title_result = _run_title(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, keywords_context, settings,
+                    supplementary_context,
                 )
                 result["title"] = title_result.get("title", "")
                 result["title_char_count"] = title_result.get("char_count", len(result["title"]))
@@ -125,7 +153,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                 bullets_result = _run_bullets(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, keywords_context,
-                    result.get("title", ""), settings,
+                    result.get("title", ""), settings, supplementary_context,
                 )
                 result["bullets"] = bullets_result.get("bullets", [])
                 result["steps_completed"].append("bullets")
@@ -135,6 +163,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, keywords_context,
                     result.get("title", ""), result.get("bullets", []), settings,
+                    supplementary_context,
                 )
                 result["description"] = desc_result.get("description", "")
                 result["desc_char_count"] = desc_result.get("char_count", len(result["description"]))
@@ -144,6 +173,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                 attr_result = _run_attributes(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, research_str,
+                    supplementary_context,
                 )
                 result["attributes"] = attr_result
                 result["steps_completed"].append("attributes")
@@ -151,7 +181,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
             elif step_name == "special_features":
                 sf_result = _run_special_features(
                     client, model, system_prompt, temperature,
-                    product, cfg, product_data_str,
+                    product, cfg, product_data_str, supplementary_context,
                 )
                 result["special_features"] = sf_result.get("special_features", [])
                 result["steps_completed"].append("special_features")
@@ -168,10 +198,42 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
         except Exception as e:
             result["errors"].append({"step": step_name, "error": str(e)})
 
-        # Small delay between API calls
-        time.sleep(0.3)
+        # Rate-limited delay between API calls
+        time.sleep(api_delay)
 
     return result
+
+
+def _build_supplementary_context(scraped_data=None, document_context=None,
+                                  crossretail_data=None, brand_tov="",
+                                  brand_limitations="",
+                                  category_guidelines_override="") -> str:
+    """Build a supplementary context block from all additional data sources."""
+    parts = []
+
+    if scraped_data:
+        scraped_str = "\n".join(f"  {k}: {v}" for k, v in scraped_data.items() if v)
+        if scraped_str:
+            parts.append(f"SCRAPED PRODUCT DATA (from live marketplace listing):\n{scraped_str}")
+
+    if document_context:
+        parts.append(f"CLIENT DOCUMENT CONTEXT:\n{document_context}")
+
+    if crossretail_data:
+        cr_str = "\n".join(f"  {k}: {v}" for k, v in crossretail_data.items() if v)
+        if cr_str:
+            parts.append(f"CROSS-RETAIL REFERENCE DATA:\n{cr_str}")
+
+    if brand_tov:
+        parts.append(f"BRAND TONE OF VOICE DETAIL:\n{brand_tov}")
+
+    if brand_limitations:
+        parts.append(f"BRAND LIMITATIONS / RESTRICTIONS:\n{brand_limitations}")
+
+    if category_guidelines_override:
+        parts.append(f"CATEGORY GUIDELINES (CUSTOM):\n{category_guidelines_override}")
+
+    return "\n\n".join(parts)
 
 
 def _call_api(client, model, system_prompt, temperature, user_prompt):
@@ -190,7 +252,8 @@ def _call_api(client, model, system_prompt, temperature, user_prompt):
 
 
 def _run_keywords(client, model, system_prompt, temperature,
-                  product, cfg, product_data_str, predict_keywords):
+                  product, cfg, product_data_str, predict_keywords,
+                  supplementary_context=""):
     predict_str = ""
     if predict_keywords:
         terms = [kw.get("search_term", "") for kw in predict_keywords[:20]]
@@ -212,12 +275,15 @@ def _run_keywords(client, model, system_prompt, temperature,
         predict_keywords=predict_str,
         search_terms_rules=search_rules,
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 
 
 def _run_title(client, model, system_prompt, temperature,
-               product, cfg, product_data_str, keywords_context, settings):
+               product, cfg, product_data_str, keywords_context, settings,
+               supplementary_context=""):
     prompt = TITLE_PROMPT.format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),
@@ -232,13 +298,15 @@ def _run_title(client, model, system_prompt, temperature,
         brand_rules=settings.get("brand_rules", ""),
         language=cfg["language"],
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 
 
 def _run_bullets(client, model, system_prompt, temperature,
                  product, cfg, product_data_str, keywords_context,
-                 generated_title, settings):
+                 generated_title, settings, supplementary_context=""):
     bullet_guides = "\n".join(
         f"  Bullet {n}: {guide}" for n, guide in cfg["bullets"]["guides"].items()
     )
@@ -255,13 +323,16 @@ def _run_bullets(client, model, system_prompt, temperature,
         language=cfg["language"],
         brand_tone=settings.get("brand_tone", "Professional"),
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 
 
 def _run_description(client, model, system_prompt, temperature,
                      product, cfg, product_data_str, keywords_context,
-                     generated_title, generated_bullets, settings):
+                     generated_title, generated_bullets, settings,
+                     supplementary_context=""):
     bullets_str = "\n".join(f"  - {b}" for b in generated_bullets) if generated_bullets else "(none)"
     prompt = DESCRIPTION_PROMPT.format(
         marketplace_name=cfg["name"],
@@ -276,12 +347,15 @@ def _run_description(client, model, system_prompt, temperature,
         brand_tone=settings.get("brand_tone", "Professional"),
         language=cfg["language"],
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 
 
 def _run_attributes(client, model, system_prompt, temperature,
-                    product, cfg, product_data_str, research_str):
+                    product, cfg, product_data_str, research_str,
+                    supplementary_context=""):
     attr_defs = "\n".join(
         f"  {a['field']} ({a['label']}): type={a['type']}"
         + (f", accepted={a['accepted']}" if a.get("accepted") else "")
@@ -297,12 +371,15 @@ def _run_attributes(client, model, system_prompt, temperature,
         attribute_definitions=attr_defs,
         language=cfg["language"],
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 
 
 def _run_special_features(client, model, system_prompt, temperature,
-                          product, cfg, product_data_str):
+                          product, cfg, product_data_str,
+                          supplementary_context=""):
     prompt = SPECIAL_FEATURES_PROMPT.format(
         marketplace_name=cfg["name"],
         product_name=product.get("title", product.get("sku", "")),
@@ -310,6 +387,8 @@ def _run_special_features(client, model, system_prompt, temperature,
         product_data=product_data_str,
         feature_count=cfg.get("special_features_count", 5),
     )
+    if supplementary_context:
+        prompt += f"\n\n{supplementary_context}"
     result, _ = _call_api(client, model, system_prompt, temperature, prompt)
     return result
 

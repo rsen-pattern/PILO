@@ -68,16 +68,32 @@ with col1:
         st.session_state["qa_decisions"] = qa_decisions
         st.rerun()
 
-# ── SKU selector ──
+# ── SKU selector with navigation arrows ──
 st.subheader("Review Products")
 current_sku_idx = st.session_state.get("qa_sku_idx", 0)
-selected_sku = st.selectbox(
-    "Select SKU",
-    skus_with_content,
-    index=min(current_sku_idx, len(skus_with_content) - 1),
-    key="qa_sku_select",
-)
-st.session_state["qa_sku_idx"] = skus_with_content.index(selected_sku)
+if current_sku_idx >= len(skus_with_content):
+    current_sku_idx = 0
+
+nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([1, 1, 6, 2])
+with nav_col1:
+    if st.button("< Prev", key="qa_prev", disabled=current_sku_idx <= 0):
+        st.session_state["qa_sku_idx"] = current_sku_idx - 1
+        st.rerun()
+with nav_col2:
+    if st.button("Next >", key="qa_next", disabled=current_sku_idx >= len(skus_with_content) - 1):
+        st.session_state["qa_sku_idx"] = current_sku_idx + 1
+        st.rerun()
+with nav_col3:
+    selected_sku = st.selectbox(
+        "Select SKU",
+        skus_with_content,
+        index=min(current_sku_idx, len(skus_with_content) - 1),
+        key="qa_sku_select",
+        label_visibility="collapsed",
+    )
+    st.session_state["qa_sku_idx"] = skus_with_content.index(selected_sku)
+with nav_col4:
+    st.caption(f"{current_sku_idx + 1} / {len(skus_with_content)}")
 
 # ── Confidence badge for this SKU ──
 sku_research = research_results.get(selected_sku, {})
