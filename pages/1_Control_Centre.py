@@ -6,7 +6,7 @@ from config.marketplace_configs import (
     MARKETPLACE_CONFIGS, MARKETPLACE_CHOICES, MARKETPLACE_KEY_BY_NAME, get_config,
 )
 from config.model_registry import BIFROST_MODELS, RECOMMENDED_MODELS
-from config.category_defaults import CATEGORY_DEFAULTS
+from config.category_defaults import CATEGORY_GUIDELINES, CATEGORIES
 import os
 
 inject_pattern_css()
@@ -80,7 +80,7 @@ brand_rules = st.text_area(
 st.session_state["brand_rules"] = brand_rules
 
 # Category
-categories = list(CATEGORY_DEFAULTS.keys())
+categories = list(CATEGORY_GUIDELINES.keys())
 category = st.selectbox(
     "Product Category",
     categories,
@@ -89,7 +89,7 @@ category = st.selectbox(
     key="cat_in",
 )
 st.session_state["category"] = category
-st.session_state["category_guidelines"] = CATEGORY_DEFAULTS.get(category, {}).get("guidelines", "")
+st.session_state["category_guidelines"] = CATEGORY_GUIDELINES.get(category, "")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1C — Title / Bullet / Description / Attribute Configuration
