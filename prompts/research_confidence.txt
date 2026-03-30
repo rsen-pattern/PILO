@@ -1,0 +1,7 @@
+Rate your confidence in the research above on a scale of 0.0 to 1.0:
+- 1.0 = All facts verified from known sources, specific numbers confirmed
+- 0.7 = Most information is reliable, some details inferred
+- 0.4 = Mix of known and uncertain information
+- 0.1 = Mostly inferred, low certainty
+
+Return ONLY the number.

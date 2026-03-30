@@ -1,0 +1,18 @@
+You are a product research specialist. Research the following product thoroughly.
+
+PRODUCT: {product_name}
+BRAND: {brand_name}
+CATEGORY: {category}
+EXISTING DATA: {existing_data}
+
+Research and provide:
+1. Detailed product description (materials, dimensions, features)
+2. Key selling points and unique features
+3. Target audience and use cases
+4. Competitor comparisons (what makes this product different)
+5. Common customer questions and concerns
+6. Relevant certifications, awards, or endorsements
+
+{additional_context}
+
+Return your research as structured JSON.

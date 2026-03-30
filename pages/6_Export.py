@@ -1,183 +1,194 @@
-"""Page 6: Export — Download marketplace-formatted output files."""
+"""Page 6: Export — Multi-format marketplace export with PXM and comparison output."""
 
 import streamlit as st
-
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.exporter import (
-    build_universal_excel,
-    build_zip_export,
+    build_marketplace_export, build_match_input_export,
+    build_universal_export, build_comparison_output,
+    build_multi_tab_excel, build_pxm_export_json, build_zip_export,
     df_to_excel_bytes,
-    export_amazon,
-    export_google_shopping,
-    export_universal,
-    export_walmart,
-    export_woolworths,
 )
-from core.utils import calculate_completeness
+from core.utils import row_to_dict, calculate_completeness
+from config.marketplace_configs import MARKETPLACE_CONFIGS
 
-st.set_page_config(page_title="PILO — Export", page_icon="\U0001f4e6", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-pattern_page_header("Export", "Download marketplace-formatted output files.")
+pattern_page_header("Export", "Download marketplace-formatted output files")
 
-# Check prerequisites
-if not st.session_state.get("generated_results"):
-    st.warning("Please complete Content Generation first.")
-    st.stop()
-
-enriched_df = st.session_state["enriched_df"]
-generated_results = st.session_state["generated_results"]
+enriched_df = st.session_state.get("enriched_df")
+generated_results = st.session_state.get("generated_results", {})
 qa_decisions = st.session_state.get("qa_decisions", {})
-settings = st.session_state.get("settings", {})
 
-# Count approved SKUs
-approved_count = sum(
-    1 for d in qa_decisions.values()
-    if d.get("status") in ("approved", "approved_with_edits")
-)
-
-if approved_count == 0:
-    st.warning("No SKUs have been approved in QA Review. Please approve at least one SKU before exporting.")
-    st.info("You can use 'Approve All Remaining' in the QA Review page for quick approval.")
+if enriched_df is None or not generated_results:
+    st.warning("No content to export. Complete QA Review first.")
     st.stop()
 
-st.metric("Approved SKUs for Export", approved_count)
+marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])
+output_format = st.session_state.get("output_format", "Match input file format")
 
-# --- Marketplace Exports ---
-st.divider()
-st.subheader("Marketplace Exports")
-
-target_marketplaces = settings.get("target_marketplace", [])
-all_exports = {}
-
-# Amazon exports
-amazon_markets = [m for m in target_marketplaces if "Amazon" in m]
-if amazon_markets:
-    with st.container():
-        st.markdown(f"### Amazon ({', '.join(amazon_markets)})")
-        amazon_df = export_amazon(enriched_df, generated_results, qa_decisions)
-        if not amazon_df.empty:
-            st.caption(f"{len(amazon_df)} SKUs")
-            st.dataframe(amazon_df.head(), use_container_width=True)
-            excel_bytes = df_to_excel_bytes(amazon_df)
-            st.download_button(
-                "Download Amazon Flat File (XLSX)",
-                data=excel_bytes,
-                file_name="pilo_amazon_export.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-            all_exports["pilo_amazon_export.xlsx"] = excel_bytes
-        else:
-            st.info("No approved SKUs for Amazon export.")
-
-# Walmart export
-if "Walmart US" in target_marketplaces:
-    with st.container():
-        st.markdown("### Walmart US")
-        walmart_df = export_walmart(enriched_df, generated_results, qa_decisions)
-        if not walmart_df.empty:
-            st.caption(f"{len(walmart_df)} SKUs")
-            st.dataframe(walmart_df.head(), use_container_width=True)
-            excel_bytes = df_to_excel_bytes(walmart_df)
-            st.download_button(
-                "Download Walmart File (XLSX)",
-                data=excel_bytes,
-                file_name="pilo_walmart_export.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-            all_exports["pilo_walmart_export.xlsx"] = excel_bytes
-        else:
-            st.info("No approved SKUs for Walmart export.")
-
-# Woolworths export
-if "Woolworths AU" in target_marketplaces:
-    with st.container():
-        st.markdown("### Woolworths AU")
-        woolworths_df = export_woolworths(enriched_df, generated_results, qa_decisions)
-        if not woolworths_df.empty:
-            st.caption(f"{len(woolworths_df)} SKUs")
-            st.dataframe(woolworths_df.head(), use_container_width=True)
-            excel_bytes = df_to_excel_bytes(woolworths_df)
-            st.download_button(
-                "Download Woolworths File (XLSX)",
-                data=excel_bytes,
-                file_name="pilo_woolworths_export.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-            all_exports["pilo_woolworths_export.xlsx"] = excel_bytes
-        else:
-            st.info("No approved SKUs for Woolworths export.")
-
-# Google Shopping export
-if "Google Shopping" in target_marketplaces:
-    with st.container():
-        st.markdown("### Google Shopping")
-        google_df = export_google_shopping(enriched_df, generated_results, qa_decisions)
-        if not google_df.empty:
-            st.caption(f"{len(google_df)} SKUs")
-            st.dataframe(google_df.head(), use_container_width=True)
-            excel_bytes = df_to_excel_bytes(google_df)
-            st.download_button(
-                "Download Google Shopping File (XLSX)",
-                data=excel_bytes,
-                file_name="pilo_google_shopping_export.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-            all_exports["pilo_google_shopping_export.xlsx"] = excel_bytes
-        else:
-            st.info("No approved SKUs for Google Shopping export.")
-
-# Universal Export
-st.divider()
-st.markdown("### Universal Export")
-st.caption("Full enriched dataset with all generated content, attributes, and QA status.")
-
-universal_bytes = build_universal_excel(enriched_df, generated_results, qa_decisions)
-st.download_button(
-    "Download Universal Export (XLSX)",
-    data=universal_bytes,
-    file_name="pilo_universal_export.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-)
-all_exports["pilo_universal_export.xlsx"] = universal_bytes
-
-# Download All as ZIP
-if len(all_exports) > 1:
-    st.divider()
-    zip_bytes = build_zip_export(all_exports)
-    st.download_button(
-        "Download All Exports (ZIP)",
-        data=zip_bytes,
-        file_name="pilo_all_exports.zip",
-        mime="application/zip",
-        type="primary",
-    )
-
-# --- Completeness Comparison ---
-st.divider()
-st.subheader("Impact Summary")
-
-before_completeness = calculate_completeness(st.session_state.get("feed_df", enriched_df))
-
-# Calculate after completeness including generated content
-universal_df = export_universal(enriched_df, generated_results, qa_decisions)
-if not universal_df.empty:
-    after_completeness = calculate_completeness(universal_df)
-else:
-    after_completeness = before_completeness
+# ── Summary ──
+st.subheader("Export Summary")
+total_approved = 0
+for sku, decisions in qa_decisions.items():
+    if isinstance(decisions, dict):
+        for mp, dec in decisions.items():
+            if isinstance(dec, dict) and dec.get("status") in ("approved", "approved_with_edits"):
+                total_approved += 1
 
 col1, col2, col3 = st.columns(3)
-
 with col1:
-    st.metric("Before PILO", f"{before_completeness}%")
-
+    st.metric("Approved Items", total_approved)
 with col2:
-    st.metric("After PILO", f"{after_completeness}%")
-
+    st.metric("Marketplaces", len(marketplace_keys))
 with col3:
-    skus_processed = len(generated_results)
-    time_manual = round(skus_processed * 15 / 60, 1)
-    st.metric("Est. Manual Time Saved", f"{time_manual} hours")
+    completeness_before = calculate_completeness(st.session_state.get("feed_df", enriched_df))
+    completeness_after = calculate_completeness(enriched_df)
+    st.metric("Completeness", f"{completeness_before:.0f}% → {completeness_after:.0f}%")
 
-st.progress(after_completeness / 100)
-st.caption(f"Before PILO: {before_completeness}% \u2192 After PILO: {after_completeness}%")
+if total_approved == 0:
+    st.warning("No approved items to export. Go back to QA Review to approve content.")
+    st.stop()
+
+# ── Time saved estimate ──
+time_saved = total_approved * 15  # 15 min per SKU manual estimate
+st.info(f"Estimated time saved: **{time_saved} minutes** ({time_saved / 60:.1f} hours) "
+        f"vs manual content creation at 15 min/SKU")
+
+st.divider()
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Marketplace-specific exports
+# ═══════════════════════════════════════════════════════════════════════════
+st.subheader("Marketplace Exports")
+
+for mp_key in marketplace_keys:
+    mp_name = MARKETPLACE_CONFIGS.get(mp_key, {}).get("name", mp_key)
+
+    with st.expander(f"{mp_name}", expanded=True):
+        if output_format == "Match input file format":
+            original_df = st.session_state.get("feed_df")
+            export_df = build_match_input_export(
+                original_df, enriched_df, generated_results,
+                qa_decisions, mp_key,
+            )
+        else:
+            export_df = build_marketplace_export(
+                enriched_df, generated_results, qa_decisions, mp_key,
+            )
+
+        if export_df is not None and not export_df.empty:
+            st.write(f"{len(export_df)} rows")
+            st.dataframe(export_df.head(5), use_container_width=True)
+            st.download_button(
+                f"Download {mp_name} Export (.xlsx)",
+                data=df_to_excel_bytes(export_df),
+                file_name=f"pilo_export_{mp_key}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_{mp_key}",
+            )
+        else:
+            st.info(f"No approved content for {mp_name}.")
+
+st.divider()
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Universal & comparison exports
+# ═══════════════════════════════════════════════════════════════════════════
+st.subheader("Additional Exports")
+
+tab_univ, tab_comp, tab_multi, tab_pxm, tab_zip = st.tabs([
+    "Universal Export", "Comparison", "Multi-Tab Excel", "PXM JSON", "ZIP Archive",
+])
+
+with tab_univ:
+    universal_df = build_universal_export(enriched_df, generated_results, qa_decisions, marketplace_keys)
+    if not universal_df.empty:
+        st.write(f"{len(universal_df)} rows × {len(universal_df.columns)} columns")
+        st.dataframe(universal_df.head(5), use_container_width=True)
+        st.download_button(
+            "Download Universal Export (.xlsx)",
+            data=df_to_excel_bytes(universal_df),
+            file_name="pilo_universal_export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="dl_universal",
+        )
+
+with tab_comp:
+    comp_df = build_comparison_output(enriched_df, generated_results, qa_decisions, marketplace_keys)
+    if not comp_df.empty:
+        st.write(f"{len(comp_df)} field changes tracked")
+        st.dataframe(comp_df.head(10), use_container_width=True)
+        st.download_button(
+            "Download Comparison (.xlsx)",
+            data=df_to_excel_bytes(comp_df),
+            file_name="pilo_comparison.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="dl_comp",
+        )
+
+with tab_multi:
+    multi_bytes = build_multi_tab_excel(enriched_df, generated_results, qa_decisions, marketplace_keys)
+    st.download_button(
+        "Download Multi-Tab Excel (.xlsx)",
+        data=multi_bytes,
+        file_name="pilo_full_export.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="dl_multi",
+    )
+
+with tab_pxm:
+    if st.session_state.get("pxm_integration"):
+        product_data = {}
+        if "sku" in enriched_df.columns:
+            for _, row in enriched_df.iterrows():
+                product_data[row["sku"]] = row_to_dict(row)
+        pxm_json = build_pxm_export_json(generated_results, product_data, marketplace_keys)
+        st.code(pxm_json[:2000] + "..." if len(pxm_json) > 2000 else pxm_json, language="json")
+        st.download_button(
+            "Download PXM JSON",
+            data=pxm_json,
+            file_name="pilo_pxm_export.json",
+            mime="application/json",
+            key="dl_pxm",
+        )
+    else:
+        st.info("Enable PXM integration in Control Centre to use this export.")
+
+with tab_zip:
+    st.caption("Download all exports as a single ZIP archive.")
+    if st.button("Build ZIP Archive", key="build_zip"):
+        exports = {}
+
+        # Marketplace exports
+        for mp_key in marketplace_keys:
+            if output_format == "Match input file format":
+                exp_df = build_match_input_export(
+                    st.session_state.get("feed_df"), enriched_df,
+                    generated_results, qa_decisions, mp_key,
+                )
+            else:
+                exp_df = build_marketplace_export(
+                    enriched_df, generated_results, qa_decisions, mp_key,
+                )
+            if exp_df is not None and not exp_df.empty:
+                exports[f"{mp_key}_export.xlsx"] = df_to_excel_bytes(exp_df)
+
+        # Multi-tab
+        exports["full_export.xlsx"] = multi_bytes
+
+        # Comparison
+        if not comp_df.empty:
+            exports["comparison.xlsx"] = df_to_excel_bytes(comp_df)
+
+        # PXM
+        if st.session_state.get("pxm_integration"):
+            exports["pxm_export.json"] = pxm_json.encode("utf-8")
+
+        zip_bytes = build_zip_export(exports)
+        st.download_button(
+            "Download ZIP Archive",
+            data=zip_bytes,
+            file_name="pilo_exports.zip",
+            mime="application/zip",
+            key="dl_zip",
+        )
