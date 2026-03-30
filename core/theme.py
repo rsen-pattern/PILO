@@ -1,14 +1,16 @@
 """Pattern-branded theme for PILO — dark navy + purple/cyan accents."""
 
-# Inline SVG of the Pattern logo mark (two slanted parallel bars)
-# Cyan version for dark backgrounds
+# Inline SVG of the Pattern logo mark — two parallel bars at ~45 degrees
+# The mark is two thick rounded rectangles tilted 45 deg (bottom-left to top-right)
+# Left bar sits higher, right bar sits lower, with a clear diagonal gap
+# Cyan (#00BCD4) version for dark backgrounds
 PATTERN_LOGO_MARK_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" '
     'style="width:{size};height:{size};flex-shrink:0;">'
-    '<rect x="4" y="4" width="9" height="28" rx="2.5" '
-    'transform="rotate(-25 8.5 18)" fill="#00BCD4"/>'
-    '<rect x="17" y="4" width="9" height="28" rx="2.5" '
-    'transform="rotate(-25 21.5 18)" fill="#00BCD4"/>'
+    '<rect x="3" y="6" width="8.5" height="24" rx="3" '
+    'transform="rotate(-45 7.25 18)" fill="#00BCD4"/>'
+    '<rect x="13.5" y="6" width="8.5" height="24" rx="3" '
+    'transform="rotate(-45 17.75 18)" fill="#00BCD4"/>'
     '</svg>'
 )
 
