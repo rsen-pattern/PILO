@@ -2,26 +2,36 @@
 
 import base64
 import os
+import streamlit as st
 
 # ===== Load real Pattern logos from assets/ =====
 
 _ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 
-def _logo_data_uri(filename, mime="image/svg+xml"):
-    """Load a logo file from assets/ and return a base64 data URI."""
+def _load_logo_bytes(filename):
+    """Load logo file bytes from assets/."""
     filepath = os.path.join(_ASSETS_DIR, filename)
     if os.path.exists(filepath):
         with open(filepath, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
+            return f.read()
+    return None
+
+
+def _logo_data_uri(filename, mime="image/svg+xml"):
+    """Load a logo file from assets/ and return a base64 data URI."""
+    data = _load_logo_bytes(filename)
+    if data:
+        b64 = base64.b64encode(data).decode()
         return f"data:{mime};base64,{b64}"
     return ""
 
 
 # Pre-load both versions
+_LOGO_PNG_BYTES = _load_logo_bytes("pattern_logo_white_med (1).png")
 _LOGO_SVG_URI = _logo_data_uri("pattern_logo_blue_white.svg", "image/svg+xml")
 _LOGO_PNG_URI = _logo_data_uri("pattern_logo_white_med (1).png", "image/png")
-_LOGO_URI = _LOGO_SVG_URI or _LOGO_PNG_URI
+_LOGO_URI = _LOGO_PNG_URI or _LOGO_SVG_URI  # Prefer PNG for reliability
 
 
 def _logo_img(height="28px"):
@@ -34,13 +44,6 @@ def _logo_img(height="28px"):
 
 # --- HTML snippets used across the app ---
 
-# Sidebar header: full Pattern logo
-PATTERN_FULL_LOGO_HTML = (
-    f'<div style="display:flex;align-items:center;margin-bottom:2px;">'
-    f'{_logo_img("30px")}'
-    f'</div>'
-)
-
 # Landing page: large hero logo
 PATTERN_HERO_LOGO_HTML = (
     f'<div style="display:flex;align-items:center;margin-bottom:8px;">'
@@ -48,7 +51,14 @@ PATTERN_HERO_LOGO_HTML = (
     f'</div>'
 )
 
-# Above every page title: logo | PILO
+# Sidebar header: full Pattern logo (fallback if st.logo not available)
+PATTERN_FULL_LOGO_HTML = (
+    f'<div style="display:flex;align-items:center;margin-bottom:2px;">'
+    f'{_logo_img("30px")}'
+    f'</div>'
+)
+
+# Above every page title: logo + PILO
 PATTERN_PAGE_HEADER_HTML = (
     f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;padding-top:4px;">'
     f'{_logo_img("22px")}'
@@ -262,11 +272,6 @@ div[data-testid="stSlider"] > div > div > div {
     background: var(--accent-gradient) !important;
 }
 
-/* ===== Checkbox ===== */
-div[data-testid="stCheckbox"] label span[data-testid="stCheckbox"] {
-    border-color: var(--accent-purple) !important;
-}
-
 /* ===== File Uploader ===== */
 div[data-testid="stFileUploader"] {
     background-color: var(--bg-card) !important;
@@ -311,13 +316,27 @@ div[data-testid="stFileUploader"]:hover {
 
 def inject_pattern_css():
     """Inject Pattern brand CSS into the current Streamlit page."""
-    import streamlit as st
     st.markdown(PATTERN_CSS, unsafe_allow_html=True)
+
+
+def _get_logo_image():
+    """Get the logo as a file path for st.logo()."""
+    png_path = os.path.join(_ASSETS_DIR, "pattern_logo_white_med (1).png")
+    if os.path.exists(png_path):
+        return png_path
+    svg_path = os.path.join(_ASSETS_DIR, "pattern_logo_blue_white.svg")
+    if os.path.exists(svg_path):
+        return svg_path
+    return None
 
 
 def pattern_page_header(title, caption=None):
     """Render the Pattern logo above a page title in the main content area."""
-    import streamlit as st
+    # Use st.logo() to place logo at top of sidebar on every page
+    logo_path = _get_logo_image()
+    if logo_path:
+        st.logo(logo_path)
+
     st.markdown(PATTERN_PAGE_HEADER_HTML, unsafe_allow_html=True)
     st.title(title)
     if caption:
@@ -326,11 +345,12 @@ def pattern_page_header(title, caption=None):
 
 def pattern_sidebar():
     """Render the Pattern-branded sidebar with workflow progress."""
-    import streamlit as st
+    # Use st.logo() to put the logo at the TOP of sidebar (above nav)
+    logo_path = _get_logo_image()
+    if logo_path:
+        st.logo(logo_path)
 
     with st.sidebar:
-        # Pattern logo
-        st.markdown(PATTERN_FULL_LOGO_HTML, unsafe_allow_html=True)
         st.markdown(
             '<div style="margin-top:2px;margin-bottom:4px;">'
             '<span style="font-size:1.3em;font-weight:700;'
@@ -345,12 +365,13 @@ def pattern_sidebar():
         st.divider()
 
         steps = [
-            ("Settings", bool(st.session_state.get("settings", {}).get("brand_name"))),
+            ("Control Centre", bool(st.session_state.get("brand_name"))),
             ("Data Ingestion", st.session_state.get("feed_df") is not None),
             ("Enrichment", st.session_state.get("enriched_df") is not None),
             ("Content Generation", bool(st.session_state.get("generated_results"))),
             ("QA Review", bool(st.session_state.get("qa_decisions"))),
             ("Export", False),
+            ("Cost Dashboard", bool(st.session_state.get("generated_results"))),
         ]
 
         st.markdown("**Workflow**")
@@ -367,7 +388,7 @@ def pattern_sidebar():
                 )
 
         st.divider()
-        # Footer with small logo
+        # Footer
         st.markdown(
             f'<div style="display:flex;align-items:center;gap:6px;color:#64748B;font-size:0.75em;">'
             f'Powered by {_FOOTER_LOGO}'

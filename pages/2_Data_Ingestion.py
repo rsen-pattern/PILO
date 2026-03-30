@@ -5,7 +5,7 @@ import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.feed_processor import load_feed, display_feed_preview, build_column_mapping_ui, apply_column_mapping
 from core.doc_ingestor import extract_text
-from core.scraper import scrape_amazon_asins, scrape_brand_url
+from core.scraper import scrape_amazon_product, batch_scrape_asins, scrape_brand_url
 from config.demo_data import DEMO_PRODUCTS, DEMO_RESEARCH
 
 inject_pattern_css()
@@ -195,10 +195,15 @@ if "Web Scraping" in research_method or research_method == "Both":
                         st.error("ScrapingBee API key required.")
                     else:
                         asins = feed_df["asin"].dropna().tolist()
-                        with st.spinner(f"Scraping {len(asins)} ASINs..."):
-                            scraped = scrape_amazon_asins(asins, api_key, region.lower())
-                        st.session_state["scraped_df"] = pd.DataFrame(scraped)
-                        st.success(f"Scraped {len(scraped)} products.")
+                        region_map = {"AU": "amazon.com.au", "US": "amazon.com", "UK": "amazon.co.uk", "DE": "amazon.de"}
+                        regions = [region_map.get(region, "amazon.com")]
+                        progress = st.progress(0, text="Scraping...")
+                        scraped_df = batch_scrape_asins(
+                            api_key, asins, regions,
+                            progress_callback=lambda p: progress.progress(p),
+                        )
+                        st.session_state["scraped_df"] = scraped_df
+                        st.success(f"Scraped {len(scraped_df)} products.")
                 else:
                     st.warning("No ASIN column found in feed.")
 
@@ -213,7 +218,7 @@ if "Web Scraping" in research_method or research_method == "Both":
                     scraped_data = []
                     progress = st.progress(0)
                     for i, url in enumerate(urls):
-                        text = scrape_brand_url(url, api_key)
+                        text = scrape_brand_url(api_key, url)
                         scraped_data.append({"url": url, "text": text[:5000] if text else ""})
                         progress.progress((i + 1) / len(urls))
                     st.session_state["scraped_brand_data"] = scraped_data
@@ -230,7 +235,7 @@ if "Web Scraping" in research_method or research_method == "Both":
                     scraped_data = []
                     progress = st.progress(0)
                     for i, url in enumerate(urls):
-                        text = scrape_brand_url(url, api_key)
+                        text = scrape_brand_url(api_key, url)
                         scraped_data.append({"url": url, "text": text[:5000] if text else ""})
                         progress.progress((i + 1) / len(urls))
                     st.session_state["scraped_custom_data"] = scraped_data
@@ -321,7 +326,7 @@ if st.button("Scrape External Sites", key="scrape_ext"):
         scraped = []
         progress = st.progress(0)
         for i, url in enumerate(urls):
-            text = scrape_brand_url(url, api_key)
+            text = scrape_brand_url(api_key, url)
             scraped.append({"url": url, "text": text[:5000] if text else ""})
             progress.progress((i + 1) / len(urls))
         st.session_state["external_scraped_data"] = scraped
