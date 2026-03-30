@@ -4,9 +4,12 @@ import pandas as pd
 import streamlit as st
 
 from core.enrichment import get_enrichment_stats, merge_layers
+from core.theme import inject_pattern_css, pattern_sidebar
 from core.utils import calculate_completeness
 
 st.set_page_config(page_title="PILO — Enrichment", page_icon="\U0001f9e9", layout="wide")
+inject_pattern_css()
+pattern_sidebar()
 st.title("Enrichment")
 st.caption("Merge all four data layers into a single enriched dataset.")
 

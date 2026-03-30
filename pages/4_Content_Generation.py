@@ -1,13 +1,16 @@
-"""Page 4: Content Generation — Run AI generation with Claude."""
+"""Page 4: Content Generation — Run AI generation via Bifrost or Anthropic."""
 
 import streamlit as st
 
 from core.generator import run_generation
+from core.theme import inject_pattern_css, pattern_sidebar
 from core.utils import calculate_completeness
 
 st.set_page_config(page_title="PILO — Content Generation", page_icon="\U0001f916", layout="wide")
+inject_pattern_css()
+pattern_sidebar()
 st.title("Content Generation")
-st.caption("Generate optimised product content using Claude AI.")
+st.caption("Generate optimised product content via Bifrost gateway or direct Anthropic API.")
 
 # Check prerequisites
 if st.session_state.get("enriched_df") is None:
@@ -15,7 +18,13 @@ if st.session_state.get("enriched_df") is None:
     st.stop()
 
 settings = st.session_state.get("settings", {})
-if not settings.get("anthropic_api_key"):
+
+# Check API key based on backend
+backend = settings.get("api_backend", "anthropic")
+if backend == "bifrost" and not settings.get("bifrost_api_key"):
+    st.warning("Bifrost API key is not configured. Please set it in Settings.")
+    st.stop()
+elif backend != "bifrost" and not settings.get("anthropic_api_key"):
     st.warning("Anthropic API key is not configured. Please set it in Settings.")
     st.stop()
 
@@ -28,10 +37,24 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("SKUs Available", len(enriched_df))
 with col2:
-    st.metric("Model", settings.get("model", "claude-sonnet-4-20250514").split("-")[1].title())
+    model_display = settings.get("model", "claude-sonnet-4-20250514")
+    # Shorten for display
+    if "/" in model_display:
+        model_display = model_display.split("/")[1]
+    st.metric("Model", model_display)
 with col3:
     marketplaces = ", ".join(settings.get("target_marketplace", []))
     st.metric("Marketplaces", marketplaces or "Not set")
+
+# Show backend info
+backend_label = "Bifrost Gateway" if backend == "bifrost" else "Direct Anthropic API"
+st.markdown(
+    f'<div style="background:#141B2D;border:1px solid #1E293B;border-radius:8px;padding:12px 16px;'
+    f'color:#94A3B8;font-size:0.9em;">API Backend: '
+    f'<span style="color:#7C3AED;font-weight:600;">{backend_label}</span> | '
+    f'Model: <span style="color:#06B6D4;font-weight:600;">{settings.get("model", "N/A")}</span></div>',
+    unsafe_allow_html=True,
+)
 
 # What to generate
 st.subheader("Content to Generate")
