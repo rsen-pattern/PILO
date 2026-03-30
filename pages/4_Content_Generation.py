@@ -3,14 +3,13 @@
 import streamlit as st
 
 from core.generator import run_generation
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.utils import calculate_completeness
 
 st.set_page_config(page_title="PILO — Content Generation", page_icon="\U0001f916", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-st.title("Content Generation")
-st.caption("Generate optimised product content via Bifrost gateway or direct Anthropic API.")
+pattern_page_header("Content Generation", "Generate optimised product content via Bifrost gateway.")
 
 # Check prerequisites
 if st.session_state.get("enriched_df") is None:

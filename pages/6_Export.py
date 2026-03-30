@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from core.theme import inject_pattern_css, pattern_sidebar
+from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.exporter import (
     build_universal_excel,
     build_zip_export,
@@ -18,8 +18,7 @@ from core.utils import calculate_completeness
 st.set_page_config(page_title="PILO — Export", page_icon="\U0001f4e6", layout="wide")
 inject_pattern_css()
 pattern_sidebar()
-st.title("Export")
-st.caption("Download marketplace-formatted output files.")
+pattern_page_header("Export", "Download marketplace-formatted output files.")
 
 # Check prerequisites
 if not st.session_state.get("generated_results"):
