@@ -1,5 +1,38 @@
 """Pattern-branded theme for PILO — dark navy + purple/cyan accents."""
 
+# Inline SVG of the Pattern logo mark (two slanted parallel bars)
+# Cyan version for dark backgrounds
+PATTERN_LOGO_MARK_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" '
+    'style="width:{size};height:{size};flex-shrink:0;">'
+    '<rect x="4" y="4" width="9" height="28" rx="2.5" '
+    'transform="rotate(-25 8.5 18)" fill="#00BCD4"/>'
+    '<rect x="17" y="4" width="9" height="28" rx="2.5" '
+    'transform="rotate(-25 21.5 18)" fill="#00BCD4"/>'
+    '</svg>'
+)
+
+# Full logo with "pattern" wordmark — for sidebar header
+PATTERN_FULL_LOGO_HTML = (
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">'
+    + PATTERN_LOGO_MARK_SVG.format(size="28px")
+    + '<span style="font-size:1.35em;font-weight:700;color:#FFFFFF;letter-spacing:0.3px;">'
+    'pattern</span>'
+    '</div>'
+)
+
+# Compact logo mark only — for favicon area or small placements
+PATTERN_MARK_ONLY_HTML = PATTERN_LOGO_MARK_SVG.format(size="24px")
+
+# Large logo for landing page hero
+PATTERN_HERO_LOGO_HTML = (
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">'
+    + PATTERN_LOGO_MARK_SVG.format(size="44px")
+    + '<span style="font-size:2em;font-weight:700;color:#FFFFFF;letter-spacing:0.5px;">'
+    'pattern</span>'
+    '</div>'
+)
+
 PATTERN_CSS = """
 <style>
 /* ===== Pattern Brand Colors ===== */
@@ -278,15 +311,19 @@ def pattern_sidebar():
     import streamlit as st
 
     with st.sidebar:
-        # Pattern branding
+        # Pattern logo + PILO branding
+        st.markdown(PATTERN_FULL_LOGO_HTML, unsafe_allow_html=True)
         st.markdown(
-            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
-            '<span style="font-size:1.4em;font-weight:700;background:linear-gradient(135deg,#7C3AED,#06B6D4);'
-            '-webkit-background-clip:text;-webkit-text-fill-color:transparent;">PILO</span>'
+            '<div style="margin-top:2px;margin-bottom:4px;">'
+            '<span style="font-size:1.3em;font-weight:700;'
+            'background:linear-gradient(135deg,#7C3AED,#06B6D4);'
+            '-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
+            'background-clip:text;">PILO</span>'
+            '<span style="color:#64748B;font-size:0.8em;margin-left:8px;">'
+            'Listing Optimisation</span>'
             '</div>',
             unsafe_allow_html=True,
         )
-        st.caption("Pattern Intelligence Listing Optimisation")
         st.divider()
 
         steps = [
@@ -312,8 +349,12 @@ def pattern_sidebar():
                 )
 
         st.divider()
+        # Powered by Pattern footer with logo mark
         st.markdown(
-            '<div style="color:#64748B;font-size:0.75em;">Powered by '
-            '<span style="color:#7C3AED;">Pattern</span></div>',
+            '<div style="display:flex;align-items:center;gap:6px;color:#64748B;font-size:0.75em;">'
+            'Powered by '
+            + PATTERN_LOGO_MARK_SVG.format(size="14px")
+            + '<span style="color:#FFFFFF;font-weight:600;">pattern</span>'
+            '</div>',
             unsafe_allow_html=True,
         )
