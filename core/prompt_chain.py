@@ -97,6 +97,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
         brand_tov=settings.get("brand_tov", ""),
         brand_limitations=settings.get("brand_limitations", ""),
         category_guidelines_override=settings.get("category_guidelines_override", ""),
+        brand_guideline_text=settings.get("brand_guideline_text", ""),
     )
 
     # Determine which steps to run (respecting selective generation toggles)
@@ -207,9 +208,15 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
 def _build_supplementary_context(scraped_data=None, document_context=None,
                                   crossretail_data=None, brand_tov="",
                                   brand_limitations="",
-                                  category_guidelines_override="") -> str:
+                                  category_guidelines_override="",
+                                  brand_guideline_text="") -> str:
     """Build a supplementary context block from all additional data sources."""
     parts = []
+
+    if brand_guideline_text:
+        # Cap at 5000 chars to avoid blowing up the prompt
+        text = brand_guideline_text[:5000]
+        parts.append(f"BRAND GUIDELINE DOCUMENT:\n{text}")
 
     if scraped_data:
         scraped_str = "\n".join(f"  {k}: {v}" for k, v in scraped_data.items() if v)

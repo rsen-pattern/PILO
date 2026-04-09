@@ -8,12 +8,39 @@ from config.file_format_handlers import detect_file_format, parse_file
 from core.product_matcher import check_identifiers, find_identifier_columns
 
 STANDARD_FIELDS = [
-    "sku", "asin", "ean_gtin", "upc",
-    "title", "brand",
+    # Core identifiers
+    "sku", "asin", "ean_gtin", "upc", "product_id", "product_id_type",
+    # Core content
+    "title", "brand", "manufacturer",
     "bullet_1", "bullet_2", "bullet_3", "bullet_4", "bullet_5",
-    "description", "product_type", "price", "image_url",
-    "color", "material", "size", "weight",
-    "gender", "age_group", "country_of_origin",
+    "description", "product_type", "item_type",
+    # Search & discovery
+    "search_terms", "recommended_browse_nodes",
+    # Target audience
+    "target_audience_1", "target_audience_2", "target_audience_3",
+    "target_audience_4", "target_audience_5",
+    # Pricing & images
+    "price", "quantity", "image_url",
+    # Physical attributes
+    "color", "color_map", "material", "material_type", "size", "weight",
+    "scent", "style_name", "pattern_name", "item_form",
+    # Skin / hair (beauty & personal care)
+    "skin_type", "hair_type",
+    # Special features
+    "special_feature_1", "special_feature_2", "special_feature_3",
+    "special_feature_4", "special_feature_5",
+    # Product details
+    "ingredients", "directions", "product_benefits", "indications",
+    "unit_count", "unit_count_type", "number_of_items",
+    # Dimensions & weight
+    "item_length", "item_width", "package_length", "volume",
+    # Demographics
+    "gender", "department", "age_group", "age_range",
+    "country_of_origin", "parentage",
+    # Compliance
+    "is_expirable", "is_heat_sensitive", "specification_met",
+    # Amazon-specific
+    "update_delete", "flavor", "seasons", "sport_type",
 ]
 
 
@@ -32,11 +59,21 @@ def load_feed(uploaded_file, header_row=0):
     file_bytes = uploaded_file.read()
     uploaded_file.seek(0)
 
-    # Quick detection pass (always uses raw, no header)
-    if name.endswith(".csv"):
+    # For xlsx files, try reading from "Template" sheet (Amazon flat files)
+    sheet_name = None
+    if name.endswith((".xlsx", ".xls")):
+        try:
+            xls = pd.ExcelFile(io.BytesIO(file_bytes))
+            if "Template" in xls.sheet_names:
+                sheet_name = "Template"
+                raw = pd.read_excel(xls, sheet_name="Template", nrows=5, header=None)
+            else:
+                raw = pd.read_excel(xls, nrows=5, header=None)
+                sheet_name = xls.sheet_names[0] if xls.sheet_names else None
+        except Exception:
+            raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
+    elif name.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
-    elif name.endswith((".xlsx", ".xls")):
-        raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
     else:
         raise ValueError(f"Unsupported file type: {name}")
 
@@ -52,6 +89,7 @@ def load_feed(uploaded_file, header_row=0):
         "rows": len(df),
         "columns": len(df.columns),
         "header_row": header_row,
+        "sheet_name": sheet_name,
     }
 
     return df, detected_format, format_metadata
@@ -132,29 +170,88 @@ def _auto_detect_column(field, source_cols):
     """Try to auto-detect matching column for a standard field."""
     field_lower = field.lower()
     aliases = {
-        "sku": ["sku", "item_sku", "seller_sku", "product_sku"],
-        "asin": ["asin", "amazon_asin"],
-        "ean_gtin": ["ean", "gtin", "barcode", "upc", "ean13", "gtin13"],
+        # Core identifiers
+        "sku": ["sku", "item_sku", "seller_sku", "product_sku", "seller sku"],
+        "asin": ["asin", "amazon_asin", "product_id"],
+        "ean_gtin": ["ean", "gtin", "barcode", "ean13", "gtin13"],
         "upc": ["upc", "upc_code"],
-        "title": ["title", "item_name", "product_name", "product_title"],
-        "brand": ["brand", "brand_name"],
-        "description": ["description", "product_description", "long_description"],
-        "product_type": ["product_type", "category", "item_type"],
-        "price": ["price", "list_price", "standard_price"],
-        "image_url": ["image_url", "main_image", "image", "main_image_url"],
+        "product_id": ["product_id", "product id"],
+        "product_id_type": ["product_id_type", "product id type"],
+        # Core content
+        "title": ["title", "item_name", "product_name", "product_title", "product name"],
+        "brand": ["brand", "brand_name", "brand name"],
+        "manufacturer": ["manufacturer"],
+        "bullet_1": ["bullet_1", "bullet_point_1", "key_product_features", "key product features"],
+        "bullet_2": ["bullet_2", "bullet_point_2"],
+        "bullet_3": ["bullet_3", "bullet_point_3"],
+        "bullet_4": ["bullet_4", "bullet_point_4"],
+        "bullet_5": ["bullet_5", "bullet_point_5"],
+        "description": ["description", "product_description", "long_description", "product description"],
+        "product_type": ["product_type", "category", "product type"],
+        "item_type": ["item_type", "item_type_name", "item type name", "item_type_keyword"],
+        # Search & discovery
+        "search_terms": ["search_terms", "search terms", "generic_keywords", "generic keywords"],
+        "recommended_browse_nodes": ["recommended_browse_nodes", "recommended browse nodes"],
+        # Target audience
+        "target_audience_1": ["target_audience", "target audience"],
+        # Pricing & images
+        "price": ["price", "list_price", "standard_price", "your_price", "your price"],
+        "quantity": ["quantity", "qty"],
+        "image_url": ["image_url", "main_image", "image", "main_image_url", "main image url"],
+        # Physical attributes
         "color": ["color", "colour", "color_name"],
-        "material": ["material", "material_type", "material_type1"],
+        "color_map": ["color_map", "colour_map", "colour map"],
+        "material": ["material", "material_type"],
+        "material_type": ["material_type_free", "material type free"],
         "size": ["size", "size_name"],
-        "weight": ["weight", "item_weight"],
-        "gender": ["gender", "target_audience_keywords"],
-        "age_group": ["age_group", "age_range", "age_range_description"],
+        "weight": ["weight", "item_weight", "item weight"],
+        "scent": ["scent", "scent_name", "scent name"],
+        "style_name": ["style_name", "style name"],
+        "pattern_name": ["pattern_name", "pattern name"],
+        "item_form": ["item_form", "item form"],
+        # Skin / hair
+        "skin_type": ["skin_type", "skin type"],
+        "hair_type": ["hair_type", "hair type"],
+        # Special features
+        "special_feature_1": ["special_feature", "special_features", "special features"],
+        # Product details
+        "ingredients": ["ingredients"],
+        "directions": ["directions"],
+        "product_benefits": ["product_benefits", "product benefits"],
+        "indications": ["indications"],
+        "unit_count": ["unit_count", "unit count"],
+        "unit_count_type": ["unit_count_type", "unit count type"],
+        "number_of_items": ["number_of_items", "number of items"],
+        "volume": ["volume"],
+        "item_length": ["item_length", "item length longer edge", "item_length_longer_edge"],
+        "item_width": ["item_width", "item width shorter edge", "item_width_shorter_edge"],
+        "package_length": ["package_length", "package length"],
+        # Demographics
+        "gender": ["gender"],
+        "department": ["department"],
+        "age_group": ["age_group", "age_range", "age_range_description", "age range description"],
+        "age_range": ["age_range", "age_range_description", "age range description"],
         "country_of_origin": ["country_of_origin"],
+        "parentage": ["parentage", "parent_child"],
+        # Compliance
+        "is_expirable": ["is_product_expirable", "is product expirable"],
+        "is_heat_sensitive": ["is_the_item_heat_sensitive", "is the item heat sensitive"],
+        "specification_met": ["specification_met", "specification met"],
+        # Amazon-specific
+        "update_delete": ["update_delete", "update delete"],
+        "flavor": ["flavor", "flavour"],
+        "seasons": ["seasons"],
+        "sport_type": ["sport_type", "sport type"],
     }
 
     check_names = aliases.get(field_lower, [field_lower])
     for j, src in enumerate(source_cols):
         src_lower = src.lower().replace(" ", "_")
         if src_lower in check_names:
+            return j
+        # Also check without underscores (raw "Seller SKU" → "seller_sku")
+        src_clean = src.lower().strip()
+        if src_clean in check_names:
             return j
         for name in check_names:
             if name in src_lower:

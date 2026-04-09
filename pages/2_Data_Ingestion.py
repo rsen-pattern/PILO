@@ -40,28 +40,65 @@ with col1:
     )
 
 if uploaded:
-    # Header row selection
+    # Header row selection with auto-detection for Amazon flat files
     try:
-        # Read raw to show preview for header selection
         raw_preview = None
-        if uploaded.name.lower().endswith(".csv"):
+        detected_sheet = None
+        fname = uploaded.name.lower()
+
+        if fname.endswith(".csv"):
             raw_preview = pd.read_csv(uploaded, nrows=10, header=None)
-        elif uploaded.name.lower().endswith((".xlsx", ".xls")):
-            raw_preview = pd.read_excel(uploaded, nrows=10, header=None)
+        elif fname.endswith((".xlsx", ".xls")):
+            # For xlsx, try Template tab first (Amazon flat files always use it)
+            try:
+                xls = pd.ExcelFile(uploaded)
+                sheet_names = xls.sheet_names
+                if "Template" in sheet_names:
+                    raw_preview = pd.read_excel(xls, sheet_name="Template", nrows=10, header=None)
+                    detected_sheet = "Template"
+                else:
+                    raw_preview = pd.read_excel(xls, nrows=10, header=None)
+                    detected_sheet = sheet_names[0] if sheet_names else None
+            except Exception:
+                raw_preview = pd.read_excel(uploaded, nrows=10, header=None)
         uploaded.seek(0)
 
+        # Auto-detect format and suggest header row
+        default_header = 0
+        auto_detected_info = ""
         if raw_preview is not None:
-            with st.expander("Header Row Selection", expanded=False):
-                st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
+            from config.file_format_handlers import detect_file_format, _parse_amazon_settings_row
+            quick_fmt = detect_file_format(raw_preview, uploaded.name)
+
+            if quick_fmt == "amazon_flat_file":
+                settings = _parse_amazon_settings_row(raw_preview)
+                default_header = settings["attribute_row"]
+                data_start = settings["data_row"]
+                auto_detected_info = (
+                    f"Amazon flat file detected"
+                    + (f" (sheet: **{detected_sheet}**)" if detected_sheet else "")
+                    + f" — attribute row: **{default_header}** (0-indexed), data starts: row **{data_start}**"
+                )
+
+        if raw_preview is not None:
+            with st.expander("Header Row Selection", expanded=bool(auto_detected_info)):
+                if auto_detected_info:
+                    st.info(auto_detected_info)
+                else:
+                    st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
+
+                if detected_sheet:
+                    st.caption(f"Reading from sheet: **{detected_sheet}**")
+
                 st.dataframe(raw_preview, use_container_width=True, hide_index=False)
                 header_row = st.number_input(
                     "Header row (0-indexed)",
                     min_value=0,
                     max_value=max(0, len(raw_preview) - 1),
-                    value=st.session_state.get("feed_header_row", 0),
+                    value=st.session_state.get("feed_header_row", default_header),
                     step=1,
                     key="header_row_in",
-                    help="Row 0 = first row. Amazon flat files typically use row 0 or 2.",
+                    help="Row 0 = first row. Amazon flat files typically use row 2 (attributeRow=3 in metadata).",
                 )
                 st.session_state["feed_header_row"] = header_row
         else:
@@ -75,7 +112,10 @@ if uploaded:
         st.session_state["feed_df"] = df
         st.session_state["feed_format"] = fmt
         st.session_state["feed_metadata"] = metadata
-        st.success(f"Loaded {len(df)} products ({fmt}) — header row: {header_row}")
+        info_parts = [f"Loaded {len(df)} products ({fmt})", f"header row: {header_row}"]
+        if metadata.get("sheet_name"):
+            info_parts.append(f"sheet: {metadata['sheet_name']}")
+        st.success(" — ".join(info_parts))
     except Exception as e:
         st.error(f"Error loading file: {e}")
 
