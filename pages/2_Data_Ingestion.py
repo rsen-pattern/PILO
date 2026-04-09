@@ -40,84 +40,107 @@ with col1:
     )
 
 if uploaded:
-    # Header row selection with auto-detection for Amazon flat files
+    fname = uploaded.name.lower()
+    is_excel = fname.endswith((".xlsx", ".xls"))
+
+    # ── Sheet selection for Excel files ──
+    sheet_names = []
+    selected_sheet = None
+    if is_excel:
+        try:
+            xls = pd.ExcelFile(uploaded)
+            sheet_names = xls.sheet_names
+            uploaded.seek(0)
+        except Exception:
+            uploaded.seek(0)
+
+    if sheet_names and len(sheet_names) > 1:
+        # Auto-detect best default: prefer "Template" (case-insensitive)
+        default_idx = 0
+        for i, sn in enumerate(sheet_names):
+            if sn.lower() == "template":
+                default_idx = i
+                break
+        selected_sheet = st.selectbox(
+            "Select worksheet",
+            sheet_names,
+            index=default_idx,
+            key="sheet_select",
+            help=f"This file has {len(sheet_names)} sheets: {', '.join(sheet_names)}",
+        )
+    elif sheet_names:
+        selected_sheet = sheet_names[0]
+
+    # ── Read raw preview from selected sheet ──
     try:
         raw_preview = None
-        detected_sheet = None
-        fname = uploaded.name.lower()
-
-        if fname.endswith(".csv"):
-            raw_preview = pd.read_csv(uploaded, nrows=10, header=None)
-        elif fname.endswith((".xlsx", ".xls")):
-            # For xlsx, try Template tab first (Amazon flat files always use it)
-            try:
-                xls = pd.ExcelFile(uploaded)
-                sheet_names = xls.sheet_names
-                if "Template" in sheet_names:
-                    raw_preview = pd.read_excel(xls, sheet_name="Template", nrows=10, header=None)
-                    detected_sheet = "Template"
-                else:
-                    raw_preview = pd.read_excel(xls, nrows=10, header=None)
-                    detected_sheet = sheet_names[0] if sheet_names else None
-            except Exception:
-                raw_preview = pd.read_excel(uploaded, nrows=10, header=None)
-        uploaded.seek(0)
-
-        # Auto-detect format and suggest header row
-        default_header = 0
-        auto_detected_info = ""
-        if raw_preview is not None:
-            from config.file_format_handlers import detect_file_format, _parse_amazon_settings_row
-            quick_fmt = detect_file_format(raw_preview, uploaded.name)
-
-            if quick_fmt == "amazon_flat_file":
-                settings = _parse_amazon_settings_row(raw_preview)
-                default_header = settings["attribute_row"]
-                data_start = settings["data_row"]
-                auto_detected_info = (
-                    f"Amazon flat file detected"
-                    + (f" (sheet: **{detected_sheet}**)" if detected_sheet else "")
-                    + f" — attribute row: **{default_header}** (0-indexed), data starts: row **{data_start}**"
-                )
-
-        if raw_preview is not None:
-            with st.expander("Header Row Selection", expanded=bool(auto_detected_info)):
-                if auto_detected_info:
-                    st.info(auto_detected_info)
-                else:
-                    st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
-
-                if detected_sheet:
-                    st.caption(f"Reading from sheet: **{detected_sheet}**")
-
-                st.dataframe(raw_preview, use_container_width=True, hide_index=False)
-                header_row = st.number_input(
-                    "Header row (0-indexed)",
-                    min_value=0,
-                    max_value=max(0, len(raw_preview) - 1),
-                    value=st.session_state.get("feed_header_row", default_header),
-                    step=1,
-                    key="header_row_in",
-                    help="Row 0 = first row. Amazon flat files typically use row 2 (attributeRow=3 in metadata).",
-                )
-                st.session_state["feed_header_row"] = header_row
+        if is_excel:
+            if selected_sheet:
+                raw_preview = pd.read_excel(uploaded, sheet_name=selected_sheet, nrows=10, header=None, dtype=str)
+            else:
+                raw_preview = pd.read_excel(uploaded, nrows=10, header=None, dtype=str)
         else:
-            header_row = 0
+            raw_preview = pd.read_csv(uploaded, nrows=10, header=None, dtype=str)
+        uploaded.seek(0)
     except Exception:
-        header_row = 0
+        raw_preview = None
         uploaded.seek(0)
 
+    # ── Auto-detect format and suggest header row ──
+    default_header = 0
+    auto_detected_info = ""
+    if raw_preview is not None:
+        from config.file_format_handlers import detect_file_format, _parse_amazon_settings_row
+        quick_fmt = detect_file_format(raw_preview, uploaded.name)
+
+        if quick_fmt == "amazon_flat_file":
+            settings = _parse_amazon_settings_row(raw_preview)
+            default_header = settings["attribute_row"]
+            data_start = settings["data_row"]
+            auto_detected_info = (
+                f"Amazon flat file detected"
+                + (f" (sheet: **{selected_sheet}**)" if selected_sheet else "")
+                + f" — attribute row: **{default_header}** (0-indexed), data starts: row **{data_start}**"
+            )
+
+    # ── Header row selection ──
+    if raw_preview is not None:
+        with st.expander("Header Row Selection", expanded=bool(auto_detected_info)):
+            if auto_detected_info:
+                st.info(auto_detected_info)
+            else:
+                st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
+
+            st.dataframe(raw_preview, use_container_width=True, hide_index=False)
+            header_row = st.number_input(
+                "Header row (0-indexed)",
+                min_value=0,
+                max_value=max(0, len(raw_preview) - 1),
+                value=st.session_state.get("feed_header_row", default_header),
+                step=1,
+                key="header_row_in",
+                help="Row 0 = first row. Amazon flat files typically use row 2 (attributeRow=3 in metadata).",
+            )
+            st.session_state["feed_header_row"] = header_row
+    else:
+        header_row = 0
+
+    # ── Load the feed ──
     try:
-        df, fmt, metadata = load_feed(uploaded, header_row=header_row)
+        df, fmt, metadata = load_feed(uploaded, header_row=header_row, sheet_name=selected_sheet)
         st.session_state["feed_df"] = df
         st.session_state["feed_format"] = fmt
         st.session_state["feed_metadata"] = metadata
         info_parts = [f"Loaded {len(df)} products ({fmt})", f"header row: {header_row}"]
         if metadata.get("sheet_name"):
             info_parts.append(f"sheet: {metadata['sheet_name']}")
+        info_parts.append(f"{len(df.columns)} columns")
         st.success(" — ".join(info_parts))
     except Exception as e:
+        import traceback
         st.error(f"Error loading file: {e}")
+        with st.expander("Error details"):
+            st.code(traceback.format_exc())
 
 feed_df = st.session_state.get("feed_df")
 if feed_df is not None:

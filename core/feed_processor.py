@@ -44,7 +44,7 @@ STANDARD_FIELDS = [
 ]
 
 
-def load_feed(uploaded_file, header_row=0):
+def load_feed(uploaded_file, header_row=0, sheet_name=None):
     """Load a CSV or Excel file with smart format detection.
 
     Args:
@@ -52,6 +52,7 @@ def load_feed(uploaded_file, header_row=0):
         header_row: Which row to use as the column header (0-indexed).
             Default 0 uses the first row. Set to e.g. 2 for Amazon flat files
             with 3-row headers.
+        sheet_name: For xlsx files, which sheet to read. None = auto-detect.
 
     Returns (df, detected_format, format_metadata).
     """
@@ -59,19 +60,30 @@ def load_feed(uploaded_file, header_row=0):
     file_bytes = uploaded_file.read()
     uploaded_file.seek(0)
 
-    # For xlsx files, try reading from "Template" sheet (Amazon flat files)
-    sheet_name = None
+    # Read raw for format detection — from specified sheet if given
     if name.endswith((".xlsx", ".xls")):
         try:
             xls = pd.ExcelFile(io.BytesIO(file_bytes))
-            if "Template" in xls.sheet_names:
+            target_sheet = None
+            if sheet_name and sheet_name in xls.sheet_names:
+                target_sheet = sheet_name
+            elif "Template" in xls.sheet_names:
+                target_sheet = "Template"
                 sheet_name = "Template"
-                raw = pd.read_excel(xls, sheet_name="Template", nrows=5, header=None)
             else:
-                raw = pd.read_excel(xls, nrows=5, header=None)
-                sheet_name = xls.sheet_names[0] if xls.sheet_names else None
+                if not sheet_name:
+                    sheet_name = xls.sheet_names[0] if xls.sheet_names else None
+                target_sheet = sheet_name
+
+            # Read raw with header=None and dtype=str to avoid type coercion issues
+            raw = pd.read_excel(
+                xls, sheet_name=target_sheet, nrows=5, header=None, dtype=str
+            )
         except Exception:
-            raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
+            try:
+                raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None, dtype=str)
+            except Exception:
+                raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
     elif name.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
     else:
@@ -79,8 +91,9 @@ def load_feed(uploaded_file, header_row=0):
 
     detected_format = detect_file_format(raw, name)
 
-    # Parse with appropriate handler, respecting user's header_row choice
-    df = parse_file(file_bytes, name, detected_format, header_row=header_row)
+    # Parse with appropriate handler
+    df = parse_file(file_bytes, name, detected_format,
+                    header_row=header_row, sheet_name=sheet_name)
 
     format_metadata = {
         "format": detected_format,
