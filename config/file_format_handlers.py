@@ -97,32 +97,57 @@ def _parse_amazon_settings_row(raw: pd.DataFrame) -> dict:
     return defaults
 
 
-def _read_xlsx_template_sheet(file_bytes: bytes) -> pd.DataFrame:
-    """Try reading the 'Template' sheet from an xlsx file. Falls back to first sheet."""
+def _read_xlsx_sheet(file_bytes: bytes, sheet_name: str = None) -> pd.DataFrame:
+    """Read an xlsx file, using the given sheet or auto-detecting 'Template'."""
     try:
         xls = pd.ExcelFile(io.BytesIO(file_bytes))
+        if sheet_name and sheet_name in xls.sheet_names:
+            return pd.read_excel(xls, sheet_name=sheet_name, header=None)
         if "Template" in xls.sheet_names:
             return pd.read_excel(xls, sheet_name="Template", header=None)
-        # Fall back to first sheet
         return pd.read_excel(xls, header=None)
     except Exception:
         return pd.read_excel(io.BytesIO(file_bytes), header=None)
 
 
-def parse_amazon_flat_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
+def _safe_column_names(row) -> list:
+    """Convert a DataFrame row to column name strings, handling NaN/float values."""
+    names = []
+    for val in row:
+        if pd.isna(val):
+            names.append("")
+        else:
+            names.append(str(val).strip())
+    # De-duplicate empty/duplicate names by appending index
+    seen = {}
+    result = []
+    for i, name in enumerate(names):
+        if not name or name == "nan":
+            result.append(f"_col_{i}")
+        elif name in seen:
+            seen[name] += 1
+            result.append(f"{name}_{seen[name]}")
+        else:
+            seen[name] = 0
+            result.append(name)
+    return result
+
+
+def parse_amazon_flat_file(file_bytes: bytes, filename: str,
+                           sheet_name: str = None) -> pd.DataFrame:
     """Parse Amazon flat file with multi-row header.
 
-    For xlsx files, reads from the 'Template' tab first.
+    For xlsx files, reads from the specified sheet (or auto-detects 'Template').
     Auto-detects attributeRow and dataRow from the metadata/settings row,
     falling back to row 3 (0-indexed 2) for attributes and row 4 (0-indexed 3) for data.
     """
     if filename.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), header=None)
     else:
-        raw = _read_xlsx_template_sheet(file_bytes)
+        raw = _read_xlsx_sheet(file_bytes, sheet_name)
 
     if raw.shape[0] < 2:
-        raw.columns = raw.iloc[0]
+        raw.columns = _safe_column_names(raw.iloc[0])
         return raw.iloc[1:].reset_index(drop=True)
 
     # Parse settings from metadata row to find attribute and data rows
@@ -135,9 +160,17 @@ def parse_amazon_flat_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if data_idx >= raw.shape[0]:
         data_idx = attr_idx + 1
 
-    field_names = raw.iloc[attr_idx].astype(str).tolist()
+    field_names = _safe_column_names(raw.iloc[attr_idx])
     data = raw.iloc[data_idx:].reset_index(drop=True)
     data.columns = field_names
+
+    # Drop columns that are entirely empty (unnamed placeholder columns)
+    empty_cols = [c for c in data.columns if c.startswith("_col_")]
+    non_empty = [c for c in empty_cols if data[c].notna().any() and (data[c].astype(str).str.strip() != "").any()]
+    drop_cols = [c for c in empty_cols if c not in non_empty]
+    if drop_cols:
+        data = data.drop(columns=drop_cols)
+
     return data
 
 
@@ -245,7 +278,7 @@ EXPORTER_MAP = {
 
 
 def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
-               header_row: int = 0) -> pd.DataFrame:
+               header_row: int = 0, sheet_name: str = None) -> pd.DataFrame:
     """Parse a file using the appropriate handler. Auto-detects if format not specified.
 
     Args:
@@ -253,16 +286,14 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
         filename: Original filename (used for format hints).
         detected_format: Pre-detected format string (auto-detects if None).
         header_row: Which row to use as column header (0-indexed).
-            When header_row > 0 and format is 'standard', the specified row
-            is used as headers and earlier rows are skipped. For marketplace-
-            specific formats (Amazon flat file etc.), their native parsers
-            are used by default — set header_row > 0 to override.
+        sheet_name: For xlsx files, which sheet to read from.
     """
     if detected_format is None:
         if filename.endswith(".csv"):
             raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
         else:
-            raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
+            raw = _read_xlsx_sheet(file_bytes, sheet_name)
+            raw = raw.head(5)
         detected_format = detect_file_format(raw, filename)
 
     # If user explicitly set a custom header row, use generic parsing with that row
@@ -270,21 +301,36 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
         if filename.endswith(".csv"):
             df = pd.read_csv(io.BytesIO(file_bytes), header=None)
         else:
-            # For xlsx, try "Template" sheet first (Amazon flat files)
-            df = _read_xlsx_template_sheet(file_bytes)
+            df = _read_xlsx_sheet(file_bytes, sheet_name)
         if header_row < len(df):
-            df.columns = df.iloc[header_row].astype(str).tolist()
+            df.columns = _safe_column_names(df.iloc[header_row])
             df = df.iloc[header_row + 1:].reset_index(drop=True)
+            # Drop empty placeholder columns
+            empty_cols = [c for c in df.columns if c.startswith("_col_")]
+            non_empty = [c for c in empty_cols if df[c].notna().any() and (df[c].astype(str).str.strip() != "").any()]
+            drop_cols = [c for c in empty_cols if c not in non_empty]
+            if drop_cols:
+                df = df.drop(columns=drop_cols)
         return df
+
+    # Use format-specific parser (pass sheet_name for Amazon)
+    if detected_format == "amazon_flat_file":
+        return parse_amazon_flat_file(file_bytes, filename, sheet_name=sheet_name)
 
     parser = PARSER_MAP.get(detected_format)
     if parser:
         return parser(file_bytes, filename)
 
-    # Standard format (header_row == 0)
+    # Standard format (header_row == 0) — let pandas handle header naturally
     if filename.endswith(".csv"):
         return pd.read_csv(io.BytesIO(file_bytes))
-    return pd.read_excel(io.BytesIO(file_bytes))
+    # Read from selected sheet with first row as header
+    try:
+        xls = pd.ExcelFile(io.BytesIO(file_bytes))
+        target = sheet_name if (sheet_name and sheet_name in xls.sheet_names) else 0
+        return pd.read_excel(xls, sheet_name=target)
+    except Exception:
+        return pd.read_excel(io.BytesIO(file_bytes))
 
 
 def export_file(df: pd.DataFrame, format_type: str, **kwargs) -> bytes:
