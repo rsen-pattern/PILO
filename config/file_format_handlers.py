@@ -5,6 +5,8 @@ Handles Amazon 3-row headers, Walmart Item Spec, GS1/NPC, eBay CSV, Google Merch
 
 import pandas as pd
 import io
+import re
+from urllib.parse import parse_qs
 
 
 # ---------------------------------------------------------------------------
@@ -60,21 +62,81 @@ def detect_file_format(df_raw: pd.DataFrame, filename: str = "") -> str:
 # Amazon flat file (3-row header)
 # ---------------------------------------------------------------------------
 
+def _parse_amazon_settings_row(raw: pd.DataFrame) -> dict:
+    """Extract attributeRow, dataRow, labelRow from the Amazon metadata/settings row.
+
+    The first row often contains a cell like:
+        settings=attributeRow=3&dataRow=4&labelRow=2&...
+    These values are 1-indexed.  Returns 0-indexed equivalents.
+    """
+    defaults = {"attribute_row": 2, "data_row": 3, "label_row": 1}
+    if raw.shape[0] < 1:
+        return defaults
+
+    for cell in raw.iloc[0]:
+        cell_str = str(cell)
+        if "attributeRow" not in cell_str:
+            continue
+        # The settings value may be inside a larger "settings=..." string
+        m = re.search(r"(?:^|settings=)(.*)", cell_str)
+        if not m:
+            continue
+        qs = m.group(1)
+        try:
+            params = parse_qs(qs)
+            attr_row = int(params.get("attributeRow", [3])[0])
+            data_row = int(params.get("dataRow", [4])[0])
+            label_row = int(params.get("labelRow", [2])[0])
+            return {
+                "attribute_row": attr_row - 1,   # convert to 0-indexed
+                "data_row": data_row - 1,
+                "label_row": label_row - 1,
+            }
+        except (ValueError, IndexError):
+            pass
+    return defaults
+
+
+def _read_xlsx_template_sheet(file_bytes: bytes) -> pd.DataFrame:
+    """Try reading the 'Template' sheet from an xlsx file. Falls back to first sheet."""
+    try:
+        xls = pd.ExcelFile(io.BytesIO(file_bytes))
+        if "Template" in xls.sheet_names:
+            return pd.read_excel(xls, sheet_name="Template", header=None)
+        # Fall back to first sheet
+        return pd.read_excel(xls, header=None)
+    except Exception:
+        return pd.read_excel(io.BytesIO(file_bytes), header=None)
+
+
 def parse_amazon_flat_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """Parse Amazon flat file with 3-row header. Row 3 = actual field names."""
+    """Parse Amazon flat file with multi-row header.
+
+    For xlsx files, reads from the 'Template' tab first.
+    Auto-detects attributeRow and dataRow from the metadata/settings row,
+    falling back to row 3 (0-indexed 2) for attributes and row 4 (0-indexed 3) for data.
+    """
     if filename.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), header=None)
     else:
-        raw = pd.read_excel(io.BytesIO(file_bytes), header=None)
+        raw = _read_xlsx_template_sheet(file_bytes)
 
-    if raw.shape[0] < 4:
-        # Fewer than 4 rows — treat as standard
+    if raw.shape[0] < 2:
         raw.columns = raw.iloc[0]
         return raw.iloc[1:].reset_index(drop=True)
 
-    # Row 3 (index 2) = field names
-    field_names = raw.iloc[2].astype(str).tolist()
-    data = raw.iloc[3:].reset_index(drop=True)
+    # Parse settings from metadata row to find attribute and data rows
+    settings = _parse_amazon_settings_row(raw)
+    attr_idx = settings["attribute_row"]
+    data_idx = settings["data_row"]
+
+    if attr_idx >= raw.shape[0]:
+        attr_idx = min(2, raw.shape[0] - 1)
+    if data_idx >= raw.shape[0]:
+        data_idx = attr_idx + 1
+
+    field_names = raw.iloc[attr_idx].astype(str).tolist()
+    data = raw.iloc[data_idx:].reset_index(drop=True)
     data.columns = field_names
     return data
 
@@ -208,7 +270,8 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
         if filename.endswith(".csv"):
             df = pd.read_csv(io.BytesIO(file_bytes), header=None)
         else:
-            df = pd.read_excel(io.BytesIO(file_bytes), header=None)
+            # For xlsx, try "Template" sheet first (Amazon flat files)
+            df = _read_xlsx_template_sheet(file_bytes)
         if header_row < len(df):
             df.columns = df.iloc[header_row].astype(str).tolist()
             df = df.iloc[header_row + 1:].reset_index(drop=True)

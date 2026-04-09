@@ -2,6 +2,7 @@
 
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
+from core.doc_ingestor import extract_text
 from config.marketplace_configs import (
     MARKETPLACE_CONFIGS, MARKETPLACE_CHOICES, MARKETPLACE_KEY_BY_NAME, get_config,
 )
@@ -97,6 +98,35 @@ brand_limitations = st.text_area(
     height=100,
 )
 st.session_state["brand_limitations"] = brand_limitations
+
+# Brand guideline document upload
+st.subheader("Brand Guideline Document")
+st.caption("Upload a brand guideline PDF/DOCX — this will be injected into every generation prompt as context.")
+brand_doc = st.file_uploader(
+    "Upload Brand Guideline",
+    type=["pdf", "docx", "txt"],
+    key="brand_guideline_upload",
+)
+if brand_doc:
+    try:
+        text = extract_text(brand_doc)
+        if text:
+            st.session_state["brand_guideline_text"] = text
+            st.session_state["brand_guideline_filename"] = brand_doc.name
+            st.success(f"Extracted {len(text):,} characters from {brand_doc.name}")
+            with st.expander("Preview extracted text"):
+                st.text(text[:3000] + ("..." if len(text) > 3000 else ""))
+    except Exception as e:
+        st.error(f"Error extracting text: {e}")
+
+existing_guideline = st.session_state.get("brand_guideline_filename")
+if existing_guideline and not brand_doc:
+    text_len = len(st.session_state.get("brand_guideline_text", ""))
+    st.info(f"Brand guideline loaded: **{existing_guideline}** ({text_len:,} chars)")
+    if st.button("Clear brand guideline", key="clear_brand_doc"):
+        st.session_state.pop("brand_guideline_text", None)
+        st.session_state.pop("brand_guideline_filename", None)
+        st.rerun()
 
 # Category
 categories = list(CATEGORY_GUIDELINES.keys())
