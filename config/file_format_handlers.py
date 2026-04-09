@@ -98,16 +98,23 @@ def _parse_amazon_settings_row(raw: pd.DataFrame) -> dict:
 
 
 def _read_xlsx_sheet(file_bytes: bytes, sheet_name: str = None) -> pd.DataFrame:
-    """Read an xlsx file, using the given sheet or auto-detecting 'Template'."""
+    """Read an xlsx file, using the given sheet or auto-detecting 'Template'.
+
+    Uses dtype=str to avoid float coercion of header/metadata rows.
+    """
     try:
         xls = pd.ExcelFile(io.BytesIO(file_bytes))
+        target = None
         if sheet_name and sheet_name in xls.sheet_names:
-            return pd.read_excel(xls, sheet_name=sheet_name, header=None)
-        if "Template" in xls.sheet_names:
-            return pd.read_excel(xls, sheet_name="Template", header=None)
-        return pd.read_excel(xls, header=None)
+            target = sheet_name
+        elif "Template" in xls.sheet_names:
+            target = "Template"
+        return pd.read_excel(xls, sheet_name=target, header=None, dtype=str)
     except Exception:
-        return pd.read_excel(io.BytesIO(file_bytes), header=None)
+        try:
+            return pd.read_excel(io.BytesIO(file_bytes), header=None, dtype=str)
+        except Exception:
+            return pd.read_excel(io.BytesIO(file_bytes), header=None)
 
 
 def _safe_column_names(row) -> list:
@@ -321,16 +328,15 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
     if parser:
         return parser(file_bytes, filename)
 
-    # Standard format (header_row == 0) — let pandas handle header naturally
+    # Standard format (header_row == 0) — read with header=None, then assign
     if filename.endswith(".csv"):
         return pd.read_csv(io.BytesIO(file_bytes))
-    # Read from selected sheet with first row as header
-    try:
-        xls = pd.ExcelFile(io.BytesIO(file_bytes))
-        target = sheet_name if (sheet_name and sheet_name in xls.sheet_names) else 0
-        return pd.read_excel(xls, sheet_name=target)
-    except Exception:
-        return pd.read_excel(io.BytesIO(file_bytes))
+    # Read from selected sheet — use header=None + dtype=str to avoid type issues
+    df = _read_xlsx_sheet(file_bytes, sheet_name)
+    if df.shape[0] > 0:
+        df.columns = _safe_column_names(df.iloc[0])
+        df = df.iloc[1:].reset_index(drop=True)
+    return df
 
 
 def export_file(df: pd.DataFrame, format_type: str, **kwargs) -> bytes:

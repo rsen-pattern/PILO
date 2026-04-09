@@ -76,11 +76,11 @@ if uploaded:
         raw_preview = None
         if is_excel:
             if selected_sheet:
-                raw_preview = pd.read_excel(uploaded, sheet_name=selected_sheet, nrows=10, header=None)
+                raw_preview = pd.read_excel(uploaded, sheet_name=selected_sheet, nrows=10, header=None, dtype=str)
             else:
-                raw_preview = pd.read_excel(uploaded, nrows=10, header=None)
+                raw_preview = pd.read_excel(uploaded, nrows=10, header=None, dtype=str)
         else:
-            raw_preview = pd.read_csv(uploaded, nrows=10, header=None)
+            raw_preview = pd.read_csv(uploaded, nrows=10, header=None, dtype=str)
         uploaded.seek(0)
     except Exception:
         raw_preview = None
@@ -137,7 +137,10 @@ if uploaded:
         info_parts.append(f"{len(df.columns)} columns")
         st.success(" — ".join(info_parts))
     except Exception as e:
+        import traceback
         st.error(f"Error loading file: {e}")
+        with st.expander("Error details"):
+            st.code(traceback.format_exc())
 
 feed_df = st.session_state.get("feed_df")
 if feed_df is not None:

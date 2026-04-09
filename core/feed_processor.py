@@ -64,17 +64,26 @@ def load_feed(uploaded_file, header_row=0, sheet_name=None):
     if name.endswith((".xlsx", ".xls")):
         try:
             xls = pd.ExcelFile(io.BytesIO(file_bytes))
+            target_sheet = None
             if sheet_name and sheet_name in xls.sheet_names:
-                raw = pd.read_excel(xls, sheet_name=sheet_name, nrows=5, header=None)
+                target_sheet = sheet_name
             elif "Template" in xls.sheet_names:
+                target_sheet = "Template"
                 sheet_name = "Template"
-                raw = pd.read_excel(xls, sheet_name="Template", nrows=5, header=None)
             else:
-                raw = pd.read_excel(xls, nrows=5, header=None)
                 if not sheet_name:
                     sheet_name = xls.sheet_names[0] if xls.sheet_names else None
+                target_sheet = sheet_name
+
+            # Read raw with header=None and dtype=str to avoid type coercion issues
+            raw = pd.read_excel(
+                xls, sheet_name=target_sheet, nrows=5, header=None, dtype=str
+            )
         except Exception:
-            raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
+            try:
+                raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None, dtype=str)
+            except Exception:
+                raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
     elif name.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
     else:
