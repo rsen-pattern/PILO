@@ -13,6 +13,7 @@ Steps:
 """
 
 import json
+import os
 import time
 
 from config.default_prompts import (
@@ -37,6 +38,18 @@ def build_system_prompt(marketplace_key: str) -> str:
         bullet_limit=get_bullet_limit(marketplace_key),
         desc_limit=get_description_limit(marketplace_key),
     )
+
+
+def _load_category_config():
+    """Load category configuration from JSON file."""
+    config_path = os.path.join("config", "category_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
 
 
 def run_chain(client, model: str, product: dict, marketplace_key: str,
@@ -66,7 +79,8 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     """
     cfg = get_config(marketplace_key)
     system_prompt = build_system_prompt(marketplace_key)
-    temperature = settings.get("temperature", 0.1)
+    # FORCE temperature = 0.1 for groundedness as per objective
+    temperature = 0.1
     api_delay = settings.get("api_rate_delay", 0.3)
     keyword_enhancement = settings.get("keyword_enhancement", True)
 
@@ -89,6 +103,20 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     if research_data and research_data.get("research"):
         research_str = json.dumps(research_data["research"], indent=2)
 
+    # Load category context
+    category_name = settings.get("category", "Other")
+    cat_config = _load_category_config().get(category_name, {})
+    category_context = cat_config.get("guidelines", "")
+
+    # Discovery keywords and weights for category
+    discovery_critical = cat_config.get("discovery_critical", [])
+    rufus_priority = cat_config.get("rufus_priority", [])
+
+    if discovery_critical:
+        category_context += f"\nDISCOVERY-CRITICAL ATTRIBUTES (Must fill): {', '.join(discovery_critical)}"
+    if rufus_priority:
+        category_context += f"\nRUFUS PRIORITIES: {', '.join(rufus_priority)}"
+
     # Build supplementary context from all data sources
     supplementary_context = _build_supplementary_context(
         scraped_data=scraped_data,
@@ -98,6 +126,8 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
         brand_limitations=settings.get("brand_limitations", ""),
         category_guidelines_override=settings.get("category_guidelines_override", ""),
         brand_guideline_text=settings.get("brand_guideline_text", ""),
+        category_context=category_context,
+        marketplace_cfg=cfg,
     )
 
     # Determine which steps to run (respecting selective generation toggles)
@@ -209,7 +239,9 @@ def _build_supplementary_context(scraped_data=None, document_context=None,
                                   crossretail_data=None, brand_tov="",
                                   brand_limitations="",
                                   category_guidelines_override="",
-                                  brand_guideline_text="") -> str:
+                                  brand_guideline_text="",
+                                  category_context="",
+                                  marketplace_cfg=None) -> str:
     """Build a supplementary context block from all additional data sources."""
     parts = []
 
@@ -237,8 +269,17 @@ def _build_supplementary_context(scraped_data=None, document_context=None,
     if brand_limitations:
         parts.append(f"BRAND LIMITATIONS / RESTRICTIONS:\n{brand_limitations}")
 
+    if category_context:
+        parts.append(f"CATEGORY GUIDELINES:\n{category_context}")
+
     if category_guidelines_override:
-        parts.append(f"CATEGORY GUIDELINES (CUSTOM):\n{category_guidelines_override}")
+        parts.append(f"CATEGORY GUIDELINES (CUSTOM OVERRIDE):\n{category_guidelines_override}")
+
+    if marketplace_cfg:
+        units = marketplace_cfg.get("units")
+        terms = marketplace_cfg.get("regional_terminology")
+        if units or terms:
+            parts.append(f"MARKETPLACE REGIONAL STANDARDS:\n- Units: {units}\n- Local Terminology: {', '.join(terms) if terms else ''}")
 
     return "\n\n".join(parts)
 
@@ -264,11 +305,11 @@ def _run_keywords(client, model, system_prompt, temperature,
     predict_str = ""
     if predict_keywords:
         terms = [kw.get("search_term", "") for kw in predict_keywords[:20]]
-        predict_str = f"\nPATTERN PREDICT KEYWORDS (incorporate these):\n{', '.join(terms)}"
+        predict_str = f"\nPATTERN PREDICT KEYWORDS:\n{', '.join(terms)}"
 
     search_rules = ""
     if cfg.get("search_terms_field"):
-        limit = cfg.get("search_terms_limit", 250)
+        limit = cfg.get("search_terms_limit", 249) # 249 byte limit for 2026
         search_rules = f"Search terms field: {cfg['search_terms_field']}, limit: {limit} bytes"
     else:
         search_rules = "This marketplace does not have a dedicated search terms field"

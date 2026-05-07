@@ -10,6 +10,8 @@ MARKETPLACE_CONFIGS = {
     "amazon_au": {
         "name": "Amazon AU",
         "language": "Australian English",
+        "units": "Metric (cm, kg, ml)",
+        "regional_terminology": ["anti-dandruff", "colour", "greasy hair"],
         "title": {
             "structure": "[Brand], [Style/Product Line], [Material/Key Feature], [Product Type], [Colour], [Size/Pack Count], [Model]",
             "char_limit": 200,
@@ -65,6 +67,8 @@ MARKETPLACE_CONFIGS = {
     "amazon_us": {
         "name": "Amazon US",
         "language": "US English",
+        "units": "Imperial (inches, pounds, fluid ounces)",
+        "regional_terminology": ["dandruff", "color", "oily hair"],
         "title": {
             "structure": "[Brand] [Product Line] [Material] [Product Type] [Colour] [Size] [Packaging]",
             "char_limit": 200,
@@ -112,6 +116,8 @@ MARKETPLACE_CONFIGS = {
     "amazon_uk": {
         "name": "Amazon UK",
         "language": "UK English",
+        "units": "Metric (cm, kg, ml)",
+        "regional_terminology": ["anti-dandruff", "colour", "greasy hair"],
         "title": {
             "structure": "[Brand] [Product Line] [Material] [Product Type] [Colour] [Size] [Packaging]",
             "char_limit": 200,
