@@ -15,7 +15,27 @@ pattern_page_header("Content Generation", "AI-powered multi-marketplace content 
 
 enriched_df = st.session_state.get("enriched_df")
 if enriched_df is None:
-    st.warning("No enriched data available. Complete the Enrichment step first.")
+    st.markdown(
+        """
+        <div style="
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-left: 4px solid #EF4444;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        ">
+            <div style="color:#EF4444;font-weight:600;font-size:1em;margin-bottom:6px;">
+                ⚠ Step not ready
+            </div>
+            <div style="color:#E2E8F0;font-size:0.95em;margin-bottom:16px;">
+                No enriched data available. Run the Enrichment merge before generating content.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.page_link("pages/3_Enrichment.py", label="← Go to Enrichment", icon="🔄")
     st.stop()
 
 # ── Configuration summary ──
@@ -236,4 +256,8 @@ if results:
                     st.error(f"Step '{err['step']}': {err['error']}")
 
     st.divider()
-    st.success(f"Content generated! Proceed to QA Review.")
+    col_stat, col_nav = st.columns([3, 1])
+    with col_stat:
+        st.success(f"Content generated for {len(results)} combinations.")
+    with col_nav:
+        st.page_link("pages/5_QA_Review.py", label="Next: QA Review →", icon="✏️")

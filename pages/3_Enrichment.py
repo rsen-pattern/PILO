@@ -12,7 +12,27 @@ pattern_page_header("Enrichment", "Merge all data layers and review enriched dat
 
 feed_df = st.session_state.get("feed_df")
 if feed_df is None:
-    st.warning("No product feed loaded. Go to Data Ingestion first.")
+    st.markdown(
+        """
+        <div style="
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-left: 4px solid #EF4444;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        ">
+            <div style="color:#EF4444;font-weight:600;font-size:1em;margin-bottom:6px;">
+                ⚠ Step not ready
+            </div>
+            <div style="color:#E2E8F0;font-size:0.95em;margin-bottom:16px;">
+                No product feed loaded. Upload a feed or load demo data before running enrichment.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.page_link("pages/2_Data_Ingestion.py", label="← Go to Data Ingestion", icon="📂")
     st.stop()
 
 # ── Gather all data layers ──
@@ -216,4 +236,8 @@ with col_exp2:
         )
 
 st.divider()
-st.success(f"Enriched dataset ready: {len(enriched_df)} products at {stats['completeness_after']:.0f}% completeness. Proceed to Content Generation.")
+col_stat, col_nav = st.columns([3, 1])
+with col_stat:
+    st.success(f"Enrichment complete: {len(enriched_df)} products at {stats['completeness_after']:.0f}% completeness.")
+with col_nav:
+    st.page_link("pages/4_Content_Generation.py", label="Next: Generate →", icon="✨")

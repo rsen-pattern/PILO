@@ -378,12 +378,20 @@ def pattern_sidebar():
         for step_name, completed in steps:
             if completed:
                 st.markdown(
-                    f'<div style="padding:4px 0;color:#22C55E;">&#10003; {step_name}</div>',
+                    f'<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+                    f'<span style="width:8px;height:8px;border-radius:50%;'
+                    f'background:#22C55E;flex-shrink:0;"></span>'
+                    f'<span style="color:#94A3B8;font-size:0.85em;">{step_name}</span>'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    f'<div style="padding:4px 0;color:#64748B;">&#9744; {step_name}</div>',
+                    f'<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+                    f'<span style="width:8px;height:8px;border-radius:50%;'
+                    f'border:1.5px solid #334155;flex-shrink:0;"></span>'
+                    f'<span style="color:#4B5563;font-size:0.85em;">{step_name}</span>'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
 
