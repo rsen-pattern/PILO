@@ -2,8 +2,11 @@
 
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
-from core.generator import run_generation
+import pandas as pd
+
+from core.generator import run_generation, load_cached_run
 from core.validator import validate_feed_preflight
+from core.cost_tracker import estimate_run_cost
 from config.marketplace_configs import MARKETPLACE_CONFIGS, MARKETPLACE_KEY_BY_NAME
 
 inject_pattern_css()
@@ -95,6 +98,46 @@ with st.expander("Prompt Chain Steps"):
 
 st.divider()
 
+# ── Resume previous run ──
+_last_cache = st.session_state.get("last_run_cache_file", "")
+if _last_cache and __import__("os").path.exists(_last_cache):
+    if st.button("Resume previous run", key="resume_run"):
+        st.session_state["generated_results"] = load_cached_run(_last_cache)
+        st.success(f"Loaded {len(st.session_state['generated_results'])} cached results.")
+        st.rerun()
+
+# ── Cost estimate ──
+est = estimate_run_cost(
+    sku_count=len(selected_skus),
+    marketplace_keys=marketplace_keys,
+    model=model,
+    keyword_enhancement=keyword_enh,
+    generate_titles=st.session_state.get("generate_titles", True),
+    generate_bullets=st.session_state.get("generate_bullets", True),
+    generate_descriptions=st.session_state.get("generate_descriptions", True),
+    generate_attributes=st.session_state.get("generate_attributes", True),
+)
+with st.container(border=True):
+    st.caption(
+        f"Estimated cost: **${est['estimated_cost_usd']:.4f}** | "
+        f"{est['total_api_calls']} API calls | "
+        f"**${est['cost_per_sku']:.4f}** per SKU"
+    )
+    _brows = [
+        {"Marketplace": MARKETPLACE_CONFIGS.get(k, {}).get("name", k),
+         "Steps": v["steps"], "API Calls": v["api_calls"], "Est. Cost": f"${v['cost']:.4f}"}
+        for k, v in est["breakdown"].items()
+    ]
+    st.dataframe(pd.DataFrame(_brows), use_container_width=True, hide_index=True)
+
+_est_cost = est["estimated_cost_usd"]
+_confirmed = True
+if _est_cost > 20.0:
+    st.error(f"Large run — estimated cost ${_est_cost:.2f} exceeds $20.00. Confirm to proceed.")
+    _confirmed = st.checkbox("I confirm I want to proceed with this run", key="cost_confirm")
+elif _est_cost > 5.0:
+    st.warning(f"Large run — review estimate before proceeding (${_est_cost:.2f})")
+
 # ── Pre-flight validation ──
 preflight = validate_feed_preflight(enriched_df, marketplace_keys)
 for msg in preflight["errors"]:
@@ -108,7 +151,7 @@ else:
 
 # ── Generate button ──
 if st.button("Generate Content", type="primary", use_container_width=True,
-             disabled=len(selected_skus) == 0):
+             disabled=len(selected_skus) == 0 or not _confirmed):
 
     settings = dict(st.session_state)
     results, errors, cost_tracker = run_generation(

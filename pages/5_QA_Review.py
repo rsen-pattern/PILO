@@ -1,10 +1,13 @@
 """Page 5: QA Review — Multi-marketplace tabs with confidence badges and source provenance."""
 
+from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from config.marketplace_configs import MARKETPLACE_CONFIGS
 from core.validator import validate_sku_content, calculate_cdq_score
+from core.variant_checker import find_variant_groups, check_variant_consistency
 
 inject_pattern_css()
 pattern_sidebar()
@@ -54,6 +57,13 @@ marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])
 research_results = st.session_state.get("research_results", {})
 shelf_scores = st.session_state.get("shelf_scores", {})
 qa_decisions = st.session_state.get("qa_decisions", {})
+
+# Pre-compute variant groups once per page load
+_variant_groups = find_variant_groups(enriched_df)
+# Build reverse map: sku → parent_id
+_sku_to_variant_parent = {
+    sku: parent for parent, skus in _variant_groups.items() for sku in skus
+}
 
 # ── Get SKUs that have generated content ──
 skus_with_content = sorted(set(sku for (sku, _) in generated_results.keys()))
@@ -106,6 +116,11 @@ with col2:
     if st.button("Clear All Decisions", key="clear_all", use_container_width=True):
         st.session_state["qa_decisions"] = {}
         st.rerun()
+
+# ── Reviewer name ──
+st.text_input("Reviewer Name", key="reviewer_name",
+              value=st.session_state.get("reviewer_name", ""),
+              placeholder="Enter your name for the audit trail")
 
 # ── SKU selector with navigation arrows ──
 st.subheader("Review Products")
@@ -180,6 +195,19 @@ for tab_idx, tab in enumerate(tabs):
         if not gen:
             st.info(f"No content generated for {mp_name}.")
             continue
+
+        # ── Variant inconsistency warnings ──
+        _parent = _sku_to_variant_parent.get(selected_sku)
+        if _parent:
+            _vgroup = _variant_groups[_parent]
+            _inconsistencies = check_variant_consistency(
+                _vgroup, generated_results, mp_key
+            )
+            for inc in _inconsistencies:
+                vals_str = " | ".join(f"{s}: {v}" for s, v in inc["values"].items())
+                st.warning(
+                    f"⚠️ Variant inconsistency: '{inc['field']}' differs across variants — {vals_str}"
+                )
 
         # Get original data
         orig_row = enriched_df[enriched_df["sku"] == selected_sku].iloc[0] if "sku" in enriched_df.columns else None
@@ -379,6 +407,13 @@ for tab_idx, tab in enumerate(tabs):
             decision_data = {
                 "status": status_map[decision],
                 "notes": notes,
+                "reviewer": st.session_state.get("reviewer_name", "Unknown") or "Unknown",
+                "timestamp": datetime.now().isoformat(),
+                "char_counts": {
+                    "title": len(edited_title),
+                    "description": len(edited_desc),
+                    "bullets": [len(b) for b in edited_bullets],
+                },
             }
 
             # Save edited content if approved with edits

@@ -6,6 +6,64 @@ Tracks token usage and estimated costs per model, per marketplace, per SKU.
 from config.model_registry import BIFROST_MODELS
 
 
+_INPUT_TOKENS_PER_STEP = 2500
+_OUTPUT_TOKENS_PER_STEP = 1000
+
+
+def estimate_run_cost(
+    sku_count: int,
+    marketplace_keys: list,
+    model: str,
+    keyword_enhancement: bool,
+    generate_titles: bool,
+    generate_bullets: bool,
+    generate_descriptions: bool,
+    generate_attributes: bool,
+) -> dict:
+    """Estimate cost before a run (conservative: 2500 input / 1000 output tokens per step)."""
+    from config.marketplace_configs import MARKETPLACE_CONFIGS
+    model_info = BIFROST_MODELS.get(model, {"input_cost": 3.0, "output_cost": 15.0})
+    in_per_m = model_info["input_cost"]
+    out_per_m = model_info["output_cost"]
+
+    breakdown = {}
+    total_steps = 0
+
+    for mp_key in marketplace_keys:
+        cfg = MARKETPLACE_CONFIGS.get(mp_key, {})
+        steps = 0
+        if keyword_enhancement:
+            steps += 1
+        if generate_titles:
+            steps += 1
+        if generate_bullets and cfg.get("bullets", {}).get("count", 0) > 0:
+            steps += 1
+        if generate_descriptions:
+            steps += 1
+        if generate_attributes:
+            steps += 1
+        if cfg.get("special_features_count", 0) > 0:
+            steps += 1
+        steps += 1  # item_type always runs
+        api_calls = sku_count * steps
+        cost = (api_calls * _INPUT_TOKENS_PER_STEP / 1_000_000) * in_per_m \
+             + (api_calls * _OUTPUT_TOKENS_PER_STEP / 1_000_000) * out_per_m
+        breakdown[mp_key] = {"steps": steps, "api_calls": api_calls, "cost": cost}
+        total_steps += steps
+
+    total_api_calls = sku_count * total_steps
+    total_cost = sum(v["cost"] for v in breakdown.values())
+    return {
+        "total_steps": total_steps,
+        "total_input_tokens": total_api_calls * _INPUT_TOKENS_PER_STEP,
+        "total_output_tokens": total_api_calls * _OUTPUT_TOKENS_PER_STEP,
+        "estimated_cost_usd": total_cost,
+        "cost_per_sku": total_cost / sku_count if sku_count else 0.0,
+        "total_api_calls": total_api_calls,
+        "breakdown": breakdown,
+    }
+
+
 class CostTracker:
     """Track API costs across generation runs."""
 
