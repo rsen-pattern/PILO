@@ -140,6 +140,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         row = enriched_df[row_mask].iloc[0]
         product = row_to_dict(row)
         sku_research = research_data.get(sku, None)
+        conf_threshold = settings.get("confidence_threshold", 0.7)
+        if sku_research and sku_research.get("confidence", 0) < conf_threshold:
+            sku_research = {**sku_research, "_below_threshold": True}
         sku_predict = predict_keywords.get(sku, [])
 
         # Gather scraped data for this SKU

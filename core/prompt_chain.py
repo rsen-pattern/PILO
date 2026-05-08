@@ -121,7 +121,13 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     product_data_str = "\n".join(f"  {k}: {v}" for k, v in product.items() if v)
     research_str = ""
     if research_data and research_data.get("research"):
-        research_str = json.dumps(research_data["research"], indent=2)
+        if research_data.get("_below_threshold"):
+            research_str = (
+                "NOTE: AI research below confidence threshold — treat as supplementary only, prefer feed data.\n"
+                + json.dumps(research_data["research"], indent=2)
+            )
+        else:
+            research_str = json.dumps(research_data["research"], indent=2)
 
     # Load category context
     category_name = settings.get("category", "Other")

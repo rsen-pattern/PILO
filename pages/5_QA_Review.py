@@ -432,7 +432,7 @@ for tab_idx, tab in enumerate(tabs):
 
             qa_decisions[selected_sku][mp_key] = decision_data
             st.session_state["qa_decisions"] = qa_decisions
-            st.success(f"Saved: {selected_sku} / {mp_name} → {decision}")
+            st.toast(f"✓ Saved: {selected_sku} / {mp_name} → {decision}", icon="✅")
 
 # ── Navigation ──
 st.divider()

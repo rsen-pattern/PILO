@@ -117,6 +117,17 @@ if preflight["passed"]:
 else:
     st.stop()
 
+conf_thresh = st.session_state.get("confidence_threshold", 0.7)
+low_conf = sum(
+    1 for r in st.session_state.get("research_results", {}).values()
+    if r.get("confidence", 1.0) < conf_thresh
+)
+if low_conf > 0:
+    st.info(
+        f"{low_conf} SKU(s) have AI research below the {conf_thresh:.0%} confidence threshold. "
+        f"Research will be flagged in prompts — feed data will take priority."
+    )
+
 # ── Cost estimate (only shown when preflight passed) ──
 est = estimate_run_cost(
     sku_count=len(selected_skus),

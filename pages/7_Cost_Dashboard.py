@@ -171,7 +171,7 @@ st.write(f"**Model:** {model}")
 st.write(f"**Provider:** {model_info.get('provider', 'Unknown')}")
 st.write(f"**Input Cost:** ${input_cost_per_m}/1M tokens")
 st.write(f"**Output Cost:** ${output_cost_per_m}/1M tokens")
-st.write(f"**Context Window:** {model_info.get('context_window', 0):,} tokens")
+st.write(f"**Context Window:** {model_info.get('context', 0):,} tokens")
 
 st.caption("Note: Costs are estimates based on average token usage per chain step. "
            "Actual costs depend on product complexity and content length.")
