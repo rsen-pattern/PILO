@@ -53,6 +53,9 @@ def _map_to_amazon(row: dict, generated: dict, marketplace_key: str = "amazon_au
         "item_form": attrs.get("item_form", ""),
         "active_ingredients": attrs.get("active_ingredients", ""),
         "dietary_claims": attrs.get("dietary_claims", ""),
+        "is_expiration_dated_product": attrs.get("is_expiration_dated_product", ""),
+        "material_features": attrs.get("material_features", ""),
+        "target_gender": attrs.get("target_gender", ""),
         **{f"special_feature{i+1}": (generated.get("special_features", []) + [""] * 5)[i]
            for i in range(5)},
     }

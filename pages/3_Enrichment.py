@@ -4,7 +4,8 @@ import pandas as pd
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.enrichment import merge_layers, get_enrichment_stats, SOURCE_COLOURS, style_source_cell
-from core.utils import calculate_completeness
+from core.utils import calculate_completeness, row_to_dict
+from core.enrichment_engine import run_deep_enrichment
 
 inject_pattern_css()
 pattern_sidebar()
@@ -124,16 +125,63 @@ st.divider()
 st.header("Part 2: Deep Attribute Mapping")
 st.caption("AI-powered attribute extraction from merged source data (Audit Trail).")
 
-deep_enrich_enabled = st.checkbox(
-    "Enable Deep Attribute Mapping",
-    value=st.session_state.get("deep_enrichment", True),
-    help="Runs the Deep Enrichment Engine (Part 2) to extract hidden attributes and map to valid values.",
-    key="deep_enrich_chk"
-)
-st.session_state["deep_enrichment"] = deep_enrich_enabled
+col_de1, col_de2 = st.columns([2, 1])
+
+with col_de1:
+    deep_enrich_enabled = st.checkbox(
+        "Enable Deep Attribute Mapping",
+        value=st.session_state.get("deep_enrichment", True),
+        help="Runs the Deep Enrichment Engine (Part 2) to extract hidden attributes and map to valid values.",
+        key="deep_enrich_chk"
+    )
+    st.session_state["deep_enrichment"] = deep_enrich_enabled
 
 if deep_enrich_enabled:
-    st.info("Deep enrichment is configured to run during Content Generation. You will see the 'Audit Trail' justification in the QA Review page.")
+    with col_de2:
+        if st.button("🚀 Run Deep Attribute Mapping", type="primary", use_container_width=True):
+            if enriched_df is not None:
+                from openai import OpenAI
+                api_key = st.session_state.get("bifrost_api_key", "")
+                base_url = st.session_state.get("bifrost_base_url", "https://bifrost.pattern.com")
+                if not api_key:
+                    st.error("Bifrost API key required.")
+                else:
+                    client = OpenAI(base_url=base_url, api_key=api_key)
+                    model = st.session_state.get("model", "anthropic/claude-sonnet-4-6")
+                    category = st.session_state.get("category", "Other")
+
+                    deep_results = {}
+                    progress = st.progress(0, text="Running Deep Enrichment...")
+
+                    for i, (idx, row) in enumerate(enriched_df.iterrows()):
+                        sku = row.get("sku")
+                        if not sku: continue
+
+                        progress.progress((i+1)/len(enriched_df), text=f"Mapping {sku}...")
+                        detail_text, detail_list = run_deep_enrichment(
+                            client, model, row_to_dict(row), category
+                        )
+                        deep_results[sku] = {
+                            "details": detail_text,
+                            "data": detail_list
+                        }
+
+                    st.session_state["deep_enrichment_results"] = deep_results
+                    st.success(f"Deep mapping complete for {len(deep_results)} products.")
+                    st.rerun()
+
+    deep_results = st.session_state.get("deep_enrichment_results", {})
+    if deep_results:
+        st.info(f"✅ Deep Attribute Mapping active. {len(deep_results)} items enriched with Audit Trail.")
+        # Inject into enriched_df for display
+        for sku, res in deep_results.items():
+            if "sku" in enriched_df.columns:
+                mask = enriched_df["sku"] == sku
+                if mask.any():
+                    idx = enriched_df.index[mask][0]
+                    enriched_df.at[idx, "Product Enrichment Details"] = res["details"]
+    else:
+        st.warning("Deep enrichment data not yet generated. Click button above.")
 
 # ── Enriched data table with source colour coding ──
 st.subheader("Enriched Dataset")
