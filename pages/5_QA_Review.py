@@ -12,10 +12,43 @@ pattern_page_header("QA Review", "Human review, edit, and approval workflow")
 
 enriched_df = st.session_state.get("enriched_df")
 generated_results = st.session_state.get("generated_results", {})
+source_map = st.session_state.get("source_map")  # may be None if enrichment skipped
 
 if enriched_df is None or not generated_results:
     st.warning("No generated content to review. Complete Content Generation first.")
     st.stop()
+
+_SOURCE_BADGES = {
+    "feed":        "🟢 Primary Feed",
+    "document":    "🔵 Client Doc",
+    "scraped":     "🟣 Web Scraped",
+    "crossretail": "🟠 Cross-Retail",
+    "ai_research": "🟡 AI Research",
+    "external":    "🔴 External Scrape",
+}
+
+
+def get_field_source(sku, field_name, source_map, enriched_df) -> str:
+    """Return the source label for a field, or empty string if unknown."""
+    if source_map is None or enriched_df is None:
+        return ""
+    try:
+        if "sku" not in enriched_df.columns or field_name not in source_map.columns:
+            return ""
+        mask = enriched_df["sku"] == sku
+        if not mask.any():
+            return ""
+        row_idx = enriched_df.index[mask][0]
+        return str(source_map.at[row_idx, field_name])
+    except Exception:
+        return ""
+
+
+def _source_badge(source: str, confidence=None) -> str:
+    if source == "ai_research" and confidence is not None:
+        return f"🟡 AI Research (confidence: {confidence:.2f})"
+    return _SOURCE_BADGES.get(source, "⬜ Unknown source")
+
 
 marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])
 research_results = st.session_state.get("research_results", {})
@@ -162,6 +195,9 @@ for tab_idx, tab in enumerate(tabs):
             st.info(orig_title if orig_title and orig_title != "nan" else "(Empty)")
         with col_pilo:
             st.caption(f"PILO Generated ({len(gen.get('title', ''))} / {title_limit} chars)")
+            _src = get_field_source(selected_sku, "title", source_map, enriched_df)
+            _conf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_src, _conf if _src == "ai_research" else None))
 
             # Mobile truncation indicator
             title_val = gen.get('title', '')
@@ -189,6 +225,9 @@ for tab_idx, tab in enumerate(tabs):
 
         if bullet_count > 0:
             st.markdown("### Bullet Points")
+            _bsrc = get_field_source(selected_sku, "bullet_1", source_map, enriched_df)
+            _bconf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_bsrc, _bconf if _bsrc == "ai_research" else None))
             bullet_limit = mp_cfg.get("bullets", {}).get("char_limit", 500)
             guides = mp_cfg.get("bullets", {}).get("guides", {})
 
@@ -230,6 +269,9 @@ for tab_idx, tab in enumerate(tabs):
             st.info(orig_desc if orig_desc and orig_desc != "nan" else "(Empty)")
         with col_pilo_d:
             st.caption(f"PILO Generated ({len(gen.get('description', ''))} / {desc_limit} chars)")
+            _dsrc = get_field_source(selected_sku, "description", source_map, enriched_df)
+            _dconf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_dsrc, _dconf if _dsrc == "ai_research" else None))
             edited_desc = st.text_area(
                 "Description Edit",
                 value=gen.get("description", ""),
@@ -262,6 +304,8 @@ for tab_idx, tab in enumerate(tabs):
             attr_cols = st.columns(3)
             for i, (attr_key, attr_val) in enumerate(attrs.items()):
                 with attr_cols[i % 3]:
+                    _asrc = get_field_source(selected_sku, attr_key, source_map, enriched_df)
+                    st.caption(_source_badge(_asrc))
                     display_val = str(attr_val) if attr_val and str(attr_val) != "nan" else ""
 
                     # Confidence Flag
