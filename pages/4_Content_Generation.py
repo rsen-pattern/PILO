@@ -3,6 +3,7 @@
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from core.generator import run_generation
+from core.validator import validate_feed_preflight
 from config.marketplace_configs import MARKETPLACE_CONFIGS, MARKETPLACE_KEY_BY_NAME
 
 inject_pattern_css()
@@ -93,6 +94,17 @@ with st.expander("Prompt Chain Steps"):
             st.write(f"  {s}")
 
 st.divider()
+
+# ── Pre-flight validation ──
+preflight = validate_feed_preflight(enriched_df, marketplace_keys)
+for msg in preflight["errors"]:
+    st.error(f"Feed error: {msg}")
+for msg in preflight["warnings"]:
+    st.warning(f"Feed warning: {msg}")
+if preflight["passed"]:
+    st.success("Feed validated — ready to generate")
+else:
+    st.stop()
 
 # ── Generate button ──
 if st.button("Generate Content", type="primary", use_container_width=True,
