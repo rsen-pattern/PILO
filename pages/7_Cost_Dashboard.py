@@ -102,7 +102,7 @@ for mp_key in marketplace_keys:
         "Est. Cost": f"${mp_cost:.4f}",
     })
 
-st.dataframe(pd.DataFrame(mp_data), use_container_width=True, hide_index=True)
+st.dataframe(pd.DataFrame(mp_data), width="stretch", hide_index=True)
 
 st.divider()
 
@@ -136,7 +136,7 @@ for step_key, label in step_labels.items():
             "Est. Cost": f"${step_cost:.4f}",
         })
 
-st.dataframe(pd.DataFrame(step_data), use_container_width=True, hide_index=True)
+st.dataframe(pd.DataFrame(step_data), width="stretch", hide_index=True)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Keyword Enhancement Cost Toggle

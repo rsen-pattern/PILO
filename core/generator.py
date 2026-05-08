@@ -4,6 +4,7 @@ Maintains backward-compatible helpers for scraping/doc context.
 """
 
 import json
+import os
 import time
 
 import streamlit as st
@@ -42,12 +43,37 @@ def get_doc_context_for_sku(sku, ingested_docs):
     return "\n\n".join(relevant_texts) if relevant_texts else None
 
 
+def load_cached_run(cache_file: str) -> dict:
+    """Load a previous run from a .jsonl cache file.
+
+    Returns {(sku, mp_key): chain_result}
+    """
+    results = {}
+    try:
+        with open(cache_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                results[(entry["sku"], entry["marketplace"])] = entry["result"]
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return results
+
+
 def run_generation(enriched_df, settings, selected_skus=None, generate_options=None):
     """Run multi-marketplace content generation via the prompt chain.
 
     Returns (results_dict, errors_list, cost_tracker).
     results_dict is keyed by (sku, marketplace).
     """
+    run_id = f"pilo_run_{int(time.time())}"
+    cache_dir = ".pilo_cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = f"{cache_dir}/{run_id}.jsonl"
+    st.session_state["last_run_cache_file"] = cache_file
+
     try:
         client, model_id = _create_client(settings)
     except ValueError as e:
@@ -130,19 +156,25 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
                 )
 
             try:
-                chain_result = run_chain(
-                    client=client,
-                    model=model_id,
-                    product=product,
-                    marketplace_key=mp_key,
-                    settings=settings,
-                    research_data=sku_research,
-                    predict_keywords=sku_predict if isinstance(sku_predict, list) else [],
-                    scraped_data=sku_scraped,
-                    document_context=sku_doc_context,
-                    crossretail_data=sku_crossretail,
-                    progress_callback=step_callback,
-                )
+                if (sku, mp_key) in results:
+                    chain_result = results[(sku, mp_key)]
+                else:
+                    chain_result = run_chain(
+                        client=client,
+                        model=model_id,
+                        product=product,
+                        marketplace_key=mp_key,
+                        settings=settings,
+                        research_data=sku_research,
+                        predict_keywords=sku_predict if isinstance(sku_predict, list) else [],
+                        scraped_data=sku_scraped,
+                        document_context=sku_doc_context,
+                        crossretail_data=sku_crossretail,
+                        progress_callback=step_callback,
+                    )
+                    with open(cache_file, "a") as _cf:
+                        _cf.write(json.dumps({"sku": sku, "marketplace": mp_key, "result": chain_result}) + "\n")
+                        _cf.flush()
                 results[(sku, mp_key)] = chain_result
 
                 with status_container:

@@ -1,10 +1,13 @@
 """Page 5: QA Review — Multi-marketplace tabs with confidence badges and source provenance."""
 
+from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from config.marketplace_configs import MARKETPLACE_CONFIGS
 from core.validator import validate_sku_content, calculate_cdq_score
+from core.variant_checker import find_variant_groups, check_variant_consistency
 
 inject_pattern_css()
 pattern_sidebar()
@@ -12,15 +15,55 @@ pattern_page_header("QA Review", "Human review, edit, and approval workflow")
 
 enriched_df = st.session_state.get("enriched_df")
 generated_results = st.session_state.get("generated_results", {})
+source_map = st.session_state.get("source_map")  # may be None if enrichment skipped
 
 if enriched_df is None or not generated_results:
     st.warning("No generated content to review. Complete Content Generation first.")
     st.stop()
 
+_SOURCE_BADGES = {
+    "feed":        "🟢 Primary Feed",
+    "document":    "🔵 Client Doc",
+    "scraped":     "🟣 Web Scraped",
+    "crossretail": "🟠 Cross-Retail",
+    "ai_research": "🟡 AI Research",
+    "external":    "🔴 External Scrape",
+}
+
+
+def get_field_source(sku, field_name, source_map, enriched_df) -> str:
+    """Return the source label for a field, or empty string if unknown."""
+    if source_map is None or enriched_df is None:
+        return ""
+    try:
+        if "sku" not in enriched_df.columns or field_name not in source_map.columns:
+            return ""
+        mask = enriched_df["sku"] == sku
+        if not mask.any():
+            return ""
+        row_idx = enriched_df.index[mask][0]
+        return str(source_map.at[row_idx, field_name])
+    except Exception:
+        return ""
+
+
+def _source_badge(source: str, confidence=None) -> str:
+    if source == "ai_research" and confidence is not None:
+        return f"🟡 AI Research (confidence: {confidence:.2f})"
+    return _SOURCE_BADGES.get(source, "⬜ Unknown source")
+
+
 marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])
 research_results = st.session_state.get("research_results", {})
 shelf_scores = st.session_state.get("shelf_scores", {})
 qa_decisions = st.session_state.get("qa_decisions", {})
+
+# Pre-compute variant groups once per page load
+_variant_groups = find_variant_groups(enriched_df)
+# Build reverse map: sku → parent_id
+_sku_to_variant_parent = {
+    sku: parent for parent, skus in _variant_groups.items() for sku in skus
+}
 
 # ── Get SKUs that have generated content ──
 skus_with_content = sorted(set(sku for (sku, _) in generated_results.keys()))
@@ -59,7 +102,7 @@ st.divider()
 # ── Batch actions ──
 col1, col2, col3 = st.columns([1, 1, 2])
 with col1:
-    if st.button("Approve All Remaining", key="approve_all", use_container_width=True):
+    if st.button("Approve All Remaining", key="approve_all", width="stretch"):
         for sku in skus_with_content:
             if sku not in qa_decisions:
                 qa_decisions[sku] = {}
@@ -70,9 +113,14 @@ with col1:
         st.rerun()
 
 with col2:
-    if st.button("Clear All Decisions", key="clear_all", use_container_width=True):
+    if st.button("Clear All Decisions", key="clear_all", width="stretch"):
         st.session_state["qa_decisions"] = {}
         st.rerun()
+
+# ── Reviewer name ──
+st.text_input("Reviewer Name", key="reviewer_name",
+              value=st.session_state.get("reviewer_name", ""),
+              placeholder="Enter your name for the audit trail")
 
 # ── SKU selector with navigation arrows ──
 st.subheader("Review Products")
@@ -148,6 +196,19 @@ for tab_idx, tab in enumerate(tabs):
             st.info(f"No content generated for {mp_name}.")
             continue
 
+        # ── Variant inconsistency warnings ──
+        _parent = _sku_to_variant_parent.get(selected_sku)
+        if _parent:
+            _vgroup = _variant_groups[_parent]
+            _inconsistencies = check_variant_consistency(
+                _vgroup, generated_results, mp_key
+            )
+            for inc in _inconsistencies:
+                vals_str = " | ".join(f"{s}: {v}" for s, v in inc["values"].items())
+                st.warning(
+                    f"⚠️ Variant inconsistency: '{inc['field']}' differs across variants — {vals_str}"
+                )
+
         # Get original data
         orig_row = enriched_df[enriched_df["sku"] == selected_sku].iloc[0] if "sku" in enriched_df.columns else None
 
@@ -162,6 +223,9 @@ for tab_idx, tab in enumerate(tabs):
             st.info(orig_title if orig_title and orig_title != "nan" else "(Empty)")
         with col_pilo:
             st.caption(f"PILO Generated ({len(gen.get('title', ''))} / {title_limit} chars)")
+            _src = get_field_source(selected_sku, "title", source_map, enriched_df)
+            _conf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_src, _conf if _src == "ai_research" else None))
 
             # Mobile truncation indicator
             title_val = gen.get('title', '')
@@ -189,6 +253,9 @@ for tab_idx, tab in enumerate(tabs):
 
         if bullet_count > 0:
             st.markdown("### Bullet Points")
+            _bsrc = get_field_source(selected_sku, "bullet_1", source_map, enriched_df)
+            _bconf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_bsrc, _bconf if _bsrc == "ai_research" else None))
             bullet_limit = mp_cfg.get("bullets", {}).get("char_limit", 500)
             guides = mp_cfg.get("bullets", {}).get("guides", {})
 
@@ -230,6 +297,9 @@ for tab_idx, tab in enumerate(tabs):
             st.info(orig_desc if orig_desc and orig_desc != "nan" else "(Empty)")
         with col_pilo_d:
             st.caption(f"PILO Generated ({len(gen.get('description', ''))} / {desc_limit} chars)")
+            _dsrc = get_field_source(selected_sku, "description", source_map, enriched_df)
+            _dconf = research_results.get(selected_sku, {}).get("confidence")
+            st.caption(_source_badge(_dsrc, _dconf if _dsrc == "ai_research" else None))
             edited_desc = st.text_area(
                 "Description Edit",
                 value=gen.get("description", ""),
@@ -262,6 +332,8 @@ for tab_idx, tab in enumerate(tabs):
             attr_cols = st.columns(3)
             for i, (attr_key, attr_val) in enumerate(attrs.items()):
                 with attr_cols[i % 3]:
+                    _asrc = get_field_source(selected_sku, attr_key, source_map, enriched_df)
+                    st.caption(_source_badge(_asrc))
                     display_val = str(attr_val) if attr_val and str(attr_val) != "nan" else ""
 
                     # Confidence Flag
@@ -335,6 +407,13 @@ for tab_idx, tab in enumerate(tabs):
             decision_data = {
                 "status": status_map[decision],
                 "notes": notes,
+                "reviewer": st.session_state.get("reviewer_name", "Unknown") or "Unknown",
+                "timestamp": datetime.now().isoformat(),
+                "char_counts": {
+                    "title": len(edited_title),
+                    "description": len(edited_desc),
+                    "bullets": [len(b) for b in edited_bullets],
+                },
             }
 
             # Save edited content if approved with edits

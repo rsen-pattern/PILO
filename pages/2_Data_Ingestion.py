@@ -111,7 +111,7 @@ if uploaded:
             else:
                 st.caption("If your file has multiple header rows (e.g. Amazon flat files), select which row contains the column names.")
 
-            st.dataframe(raw_preview, use_container_width=True, hide_index=False)
+            st.dataframe(raw_preview, width="stretch", hide_index=False)
             header_row = st.number_input(
                 "Header row (0-indexed)",
                 min_value=0,
@@ -226,7 +226,7 @@ with tab_cr:
             cr_df = pd.read_csv(cr_file) if cr_file.name.endswith(".csv") else pd.read_excel(cr_file)
             st.session_state["crossretail_df"] = cr_df
             st.success(f"Loaded {len(cr_df)} cross-retail rows.")
-            st.dataframe(cr_df.head(5), use_container_width=True)
+            st.dataframe(cr_df.head(5), width="stretch")
         except Exception as e:
             st.error(f"Error: {e}")
 

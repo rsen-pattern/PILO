@@ -16,6 +16,67 @@ def load_category_config():
             return {}
     return {}
 
+_CONTENT_FIELDS = ["title", "brand", "description",
+                   "bullet_1", "bullet_2", "bullet_3", "bullet_4", "bullet_5",
+                   "material", "colour", "size"]
+_IDENTIFIER_FIELDS = ["asin", "ean_gtin", "sku"]
+
+
+def validate_feed_preflight(df, marketplace_keys: list) -> dict:
+    """Validate the enriched feed before generation runs.
+
+    Returns {"passed": bool, "errors": [...], "warnings": [...]}
+    """
+    errors = []
+    warnings = []
+    cols = [c.lower() for c in df.columns]
+    col_map = {c.lower(): c for c in df.columns}
+
+    # 1. SKU column
+    if "sku" not in cols:
+        errors.append("Feed is missing a 'sku' column.")
+    else:
+        sku_col = col_map["sku"]
+        dupes = df[sku_col][df[sku_col].duplicated()].tolist()
+        if dupes:
+            errors.append(f"Duplicate SKUs found: {', '.join(str(s) for s in dupes[:10])}"
+                          + (" (and more)" if len(dupes) > 10 else ""))
+
+    # 2. Title / product name column
+    if not any(f in cols for f in ("title", "product_name")):
+        errors.append("Feed is missing a 'title' or 'product_name' column.")
+
+    # 3. Rows where ALL content fields are empty
+    present_content = [col_map[f] for f in _CONTENT_FIELDS if f in cols]
+    if present_content:
+        def _all_empty(row):
+            return all(str(row[c]).strip().lower() in ("", "nan", "none", "null")
+                       for c in present_content)
+        empty_mask = df.apply(_all_empty, axis=1)
+        if empty_mask.any():
+            sku_col = col_map.get("sku")
+            bad = df[empty_mask][sku_col].tolist() if sku_col else list(df[empty_mask].index)
+            warnings.append(f"{len(bad)} row(s) have all content fields empty: "
+                            + ", ".join(str(s) for s in bad[:10])
+                            + (" (and more)" if len(bad) > 10 else ""))
+
+    # 4. At least one identifier per row
+    present_ids = [col_map[f] for f in _IDENTIFIER_FIELDS if f in cols]
+    if present_ids:
+        def _no_id(row):
+            return all(str(row[c]).strip().lower() in ("", "nan", "none", "null")
+                       for c in present_ids)
+        no_id_mask = df.apply(_no_id, axis=1)
+        if no_id_mask.any():
+            sku_col = col_map.get("sku")
+            bad = df[no_id_mask][sku_col].tolist() if sku_col else list(df[no_id_mask].index)
+            warnings.append(f"{len(bad)} row(s) have no identifier (asin/ean_gtin/sku): "
+                            + ", ".join(str(s) for s in bad[:10])
+                            + (" (and more)" if len(bad) > 10 else ""))
+
+    return {"passed": len(errors) == 0, "errors": errors, "warnings": warnings}
+
+
 def validate_sku_content(sku_result, category, settings):
     """Validate generated content for a SKU.
 

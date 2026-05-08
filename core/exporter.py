@@ -336,11 +336,17 @@ def build_multi_tab_excel(enriched_df, generated_results, qa_decisions, marketpl
         for sku, decisions in qa_decisions.items():
             if isinstance(decisions, dict) and all(isinstance(v, dict) for v in decisions.values()):
                 for mp, dec in decisions.items():
-                    qa_rows.append({"sku": sku, "marketplace": mp,
-                                    "status": dec.get("status", ""), "notes": dec.get("notes", "")})
+                    qa_rows.append({
+                        "sku": sku, "marketplace": mp,
+                        "status": dec.get("status", ""), "notes": dec.get("notes", ""),
+                        "reviewer": dec.get("reviewer", ""), "timestamp": dec.get("timestamp", ""),
+                    })
             elif isinstance(decisions, dict):
-                qa_rows.append({"sku": sku, "marketplace": "all",
-                                "status": decisions.get("status", ""), "notes": decisions.get("notes", "")})
+                qa_rows.append({
+                    "sku": sku, "marketplace": "all",
+                    "status": decisions.get("status", ""), "notes": decisions.get("notes", ""),
+                    "reviewer": decisions.get("reviewer", ""), "timestamp": decisions.get("timestamp", ""),
+                })
         if qa_rows:
             pd.DataFrame(qa_rows).to_excel(writer, index=False, sheet_name="QA Log")
 
