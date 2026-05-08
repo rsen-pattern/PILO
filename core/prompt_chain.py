@@ -28,6 +28,26 @@ from config.marketplace_configs import (
 )
 
 
+_PROMPT_FALLBACKS = {
+    "keywords": KEYWORDS_PROMPT,
+    "title": TITLE_PROMPT,
+    "bullets": BULLETS_PROMPT,
+    "description": DESCRIPTION_PROMPT,
+    "attributes": ATTRIBUTES_PROMPT,
+    "special_features": SPECIAL_FEATURES_PROMPT,
+    "item_type": ITEM_TYPE_PROMPT,
+}
+
+
+def _load_prompt(name: str) -> str:
+    path = os.path.join("prompts", f"{name}.txt")
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return _PROMPT_FALLBACKS.get(name, "")
+
+
 def build_system_prompt(marketplace_key: str) -> str:
     """Build the system prompt for a given marketplace."""
     cfg = get_config(marketplace_key)
@@ -314,7 +334,7 @@ def _run_keywords(client, model, system_prompt, temperature,
     else:
         search_rules = "This marketplace does not have a dedicated search terms field"
 
-    prompt = KEYWORDS_PROMPT.format(
+    prompt = _load_prompt("keywords").format(
         marketplace_name=cfg["name"],
         product_name=product.get("title", product.get("sku", "")),
         brand_name=product.get("brand", ""),
@@ -332,7 +352,7 @@ def _run_keywords(client, model, system_prompt, temperature,
 def _run_title(client, model, system_prompt, temperature,
                product, cfg, product_data_str, keywords_context, settings,
                supplementary_context=""):
-    prompt = TITLE_PROMPT.format(
+    prompt = _load_prompt("title").format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),
         product_name=product.get("title", product.get("sku", "")),
@@ -358,7 +378,7 @@ def _run_bullets(client, model, system_prompt, temperature,
     bullet_guides = "\n".join(
         f"  Bullet {n}: {guide}" for n, guide in cfg["bullets"]["guides"].items()
     )
-    prompt = BULLETS_PROMPT.format(
+    prompt = _load_prompt("bullets").format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),
         product_name=product.get("title", product.get("sku", "")),
@@ -382,7 +402,7 @@ def _run_description(client, model, system_prompt, temperature,
                      generated_title, generated_bullets, settings,
                      supplementary_context=""):
     bullets_str = "\n".join(f"  - {b}" for b in generated_bullets) if generated_bullets else "(none)"
-    prompt = DESCRIPTION_PROMPT.format(
+    prompt = _load_prompt("description").format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),
         product_name=product.get("title", product.get("sku", "")),
@@ -410,7 +430,7 @@ def _run_attributes(client, model, system_prompt, temperature,
         + (", REQUIRED" if a.get("required") else "")
         for a in cfg.get("attributes", [])
     )
-    prompt = ATTRIBUTES_PROMPT.format(
+    prompt = _load_prompt("attributes").format(
         marketplace_name=cfg["name"],
         product_name=product.get("title", product.get("sku", "")),
         brand_name=product.get("brand", ""),
@@ -428,7 +448,7 @@ def _run_attributes(client, model, system_prompt, temperature,
 def _run_special_features(client, model, system_prompt, temperature,
                           product, cfg, product_data_str,
                           supplementary_context=""):
-    prompt = SPECIAL_FEATURES_PROMPT.format(
+    prompt = _load_prompt("special_features").format(
         marketplace_name=cfg["name"],
         product_name=product.get("title", product.get("sku", "")),
         brand_name=product.get("brand", ""),
@@ -443,7 +463,7 @@ def _run_special_features(client, model, system_prompt, temperature,
 
 def _run_item_type(client, model, system_prompt, temperature,
                    product, cfg, product_data_str):
-    prompt = ITEM_TYPE_PROMPT.format(
+    prompt = _load_prompt("item_type").format(
         marketplace_name=cfg["name"],
         product_name=product.get("title", product.get("sku", "")),
         brand_name=product.get("brand", ""),
