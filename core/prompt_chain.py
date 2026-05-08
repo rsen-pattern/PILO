@@ -196,9 +196,12 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, keywords_context, settings,
                     supplementary_context,
                 )
-                result["title"] = title_result.get("title", "")
-                result["title_char_count"] = title_result.get("char_count", len(result["title"]))
-                result["steps_completed"].append("title")
+                if "raw_text" in title_result:
+                    result["errors"].append({"step": "title", "error": f"JSON parse failure: {title_result['raw_text'][:200]}"})
+                else:
+                    result["title"] = title_result.get("title") or ""
+                    result["title_char_count"] = title_result.get("char_count", len(result["title"]))
+                    result["steps_completed"].append("title")
 
             elif step_name == "bullets":
                 bullets_result = _run_bullets(
@@ -206,8 +209,11 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, keywords_context,
                     result.get("title", ""), settings, supplementary_context,
                 )
-                result["bullets"] = bullets_result.get("bullets", [])
-                result["steps_completed"].append("bullets")
+                if "raw_text" in bullets_result:
+                    result["errors"].append({"step": "bullets", "error": f"JSON parse failure: {bullets_result['raw_text'][:200]}"})
+                else:
+                    result["bullets"] = bullets_result.get("bullets", [])
+                    result["steps_completed"].append("bullets")
 
             elif step_name == "description":
                 desc_result = _run_description(
@@ -216,9 +222,12 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     result.get("title", ""), result.get("bullets", []), settings,
                     supplementary_context,
                 )
-                result["description"] = desc_result.get("description", "")
-                result["desc_char_count"] = desc_result.get("char_count", len(result["description"]))
-                result["steps_completed"].append("description")
+                if "raw_text" in desc_result:
+                    result["errors"].append({"step": "description", "error": f"JSON parse failure: {desc_result['raw_text'][:200]}"})
+                else:
+                    result["description"] = desc_result.get("description") or ""
+                    result["desc_char_count"] = desc_result.get("char_count", len(result["description"]))
+                    result["steps_completed"].append("description")
 
             elif step_name == "attributes":
                 attr_result = _run_attributes(
@@ -226,25 +235,34 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, research_str,
                     supplementary_context,
                 )
-                result["attributes"] = attr_result
-                result["steps_completed"].append("attributes")
+                if "raw_text" in attr_result:
+                    result["errors"].append({"step": "attributes", "error": f"JSON parse failure: {attr_result['raw_text'][:200]}"})
+                else:
+                    result["attributes"] = attr_result
+                    result["steps_completed"].append("attributes")
 
             elif step_name == "special_features":
                 sf_result = _run_special_features(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, supplementary_context,
                 )
-                result["special_features"] = sf_result.get("special_features", [])
-                result["steps_completed"].append("special_features")
+                if "raw_text" in sf_result:
+                    result["errors"].append({"step": "special_features", "error": f"JSON parse failure: {sf_result['raw_text'][:200]}"})
+                else:
+                    result["special_features"] = sf_result.get("special_features", [])
+                    result["steps_completed"].append("special_features")
 
             elif step_name == "item_type":
                 it_result = _run_item_type(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str,
                 )
-                result["item_type"] = it_result.get("item_type", "")
-                result["category_path"] = it_result.get("category_path", "")
-                result["steps_completed"].append("item_type")
+                if "raw_text" in it_result:
+                    result["errors"].append({"step": "item_type", "error": f"JSON parse failure: {it_result['raw_text'][:200]}"})
+                else:
+                    result["item_type"] = it_result.get("item_type") or ""
+                    result["category_path"] = it_result.get("category_path", "")
+                    result["steps_completed"].append("item_type")
 
         except Exception as e:
             result["errors"].append({"step": step_name, "error": str(e)})

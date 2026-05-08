@@ -96,6 +96,17 @@ st.divider()
 # ═══════════════════════════════════════════════════════════════════════════
 st.subheader("Additional Exports")
 
+# Pre-compute exports so tab_zip can reference them unconditionally
+multi_bytes = build_multi_tab_excel(enriched_df, generated_results, qa_decisions, marketplace_keys)
+comp_df = build_comparison_output(enriched_df, generated_results, qa_decisions, marketplace_keys)
+pxm_json = ""
+if st.session_state.get("pxm_integration"):
+    _product_data = {}
+    if "sku" in enriched_df.columns:
+        for _, _row in enriched_df.iterrows():
+            _product_data[_row["sku"]] = row_to_dict(_row)
+    pxm_json = build_pxm_export_json(generated_results, _product_data, marketplace_keys)
+
 tab_univ, tab_comp, tab_multi, tab_pxm, tab_zip = st.tabs([
     "Universal Export", "Comparison", "Multi-Tab Excel", "PXM JSON", "ZIP Archive",
 ])
@@ -114,7 +125,6 @@ with tab_univ:
         )
 
 with tab_comp:
-    comp_df = build_comparison_output(enriched_df, generated_results, qa_decisions, marketplace_keys)
     if not comp_df.empty:
         st.write(f"{len(comp_df)} field changes tracked")
         st.dataframe(comp_df.head(10), width="stretch")
@@ -127,7 +137,6 @@ with tab_comp:
         )
 
 with tab_multi:
-    multi_bytes = build_multi_tab_excel(enriched_df, generated_results, qa_decisions, marketplace_keys)
     st.download_button(
         "Download Multi-Tab Excel (.xlsx)",
         data=multi_bytes,
@@ -137,12 +146,7 @@ with tab_multi:
     )
 
 with tab_pxm:
-    if st.session_state.get("pxm_integration"):
-        product_data = {}
-        if "sku" in enriched_df.columns:
-            for _, row in enriched_df.iterrows():
-                product_data[row["sku"]] = row_to_dict(row)
-        pxm_json = build_pxm_export_json(generated_results, product_data, marketplace_keys)
+    if pxm_json:
         st.code(pxm_json[:2000] + "..." if len(pxm_json) > 2000 else pxm_json, language="json")
         st.download_button(
             "Download PXM JSON",

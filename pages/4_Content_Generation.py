@@ -106,7 +106,18 @@ if _last_cache and __import__("os").path.exists(_last_cache):
         st.success(f"Loaded {len(st.session_state['generated_results'])} cached results.")
         st.rerun()
 
-# ── Cost estimate ──
+# ── Pre-flight validation ──
+preflight = validate_feed_preflight(enriched_df, marketplace_keys)
+for msg in preflight["errors"]:
+    st.error(f"Feed error: {msg}")
+for msg in preflight["warnings"]:
+    st.warning(f"Feed warning: {msg}")
+if preflight["passed"]:
+    st.success("Feed validated — ready to generate")
+else:
+    st.stop()
+
+# ── Cost estimate (only shown when preflight passed) ──
 est = estimate_run_cost(
     sku_count=len(selected_skus),
     marketplace_keys=marketplace_keys,
@@ -137,17 +148,6 @@ if _est_cost > 20.0:
     _confirmed = st.checkbox("I confirm I want to proceed with this run", key="cost_confirm")
 elif _est_cost > 5.0:
     st.warning(f"Large run — review estimate before proceeding (${_est_cost:.2f})")
-
-# ── Pre-flight validation ──
-preflight = validate_feed_preflight(enriched_df, marketplace_keys)
-for msg in preflight["errors"]:
-    st.error(f"Feed error: {msg}")
-for msg in preflight["warnings"]:
-    st.warning(f"Feed warning: {msg}")
-if preflight["passed"]:
-    st.success("Feed validated — ready to generate")
-else:
-    st.stop()
 
 # ── Generate button ──
 if st.button("Generate Content", type="primary", width="stretch",
