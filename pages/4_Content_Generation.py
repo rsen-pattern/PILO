@@ -207,15 +207,17 @@ if results:
         r = results[key]
         mp_name = MARKETPLACE_CONFIGS.get(mp, {}).get("name", mp)
         with st.expander(f"{sku} — {mp_name}"):
-            if r.get("title"):
-                st.write(f"**Title** ({len(r['title'])} chars): {r['title']}")
+            title_text = r.get("title") or ""
+            if title_text:
+                st.write(f"**Title** ({len(title_text)} chars): {title_text}")
             if r.get("bullets"):
                 st.write("**Bullets:**")
                 for i, b in enumerate(r["bullets"], 1):
                     st.write(f"  {i}. {b}")
-            if r.get("description"):
-                st.write(f"**Description** ({len(r['description'])} chars):")
-                st.caption(r["description"][:300] + "..." if len(r["description"]) > 300 else r["description"])
+            desc_text = r.get("description") or ""
+            if desc_text:
+                st.write(f"**Description** ({len(desc_text)} chars):")
+                st.caption(desc_text[:300] + "..." if len(desc_text) > 300 else desc_text)
             if r.get("attributes"):
                 st.write(f"**Attributes:** {len(r['attributes'])} filled")
             if r.get("errors"):

@@ -180,15 +180,18 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, predict_keywords,
                     supplementary_context,
                 )
-                result["keywords"] = keywords_result
-                result["steps_completed"].append("keywords")
-                # Build context string for subsequent steps
-                kw = keywords_result
-                primary = kw.get("primary_keywords", [])
-                secondary = kw.get("secondary_keywords", [])
-                keywords_context = f"\nKEYWORDS TO INCORPORATE:\nPrimary: {', '.join(primary)}\nSecondary: {', '.join(secondary)}"
-                if kw.get("search_terms"):
-                    result["search_terms"] = kw["search_terms"]
+                result["keywords"] = keywords_result if "raw_text" not in keywords_result else {}
+                if "raw_text" in keywords_result:
+                    result["errors"].append({"step": "keywords", "error": f"JSON parse failure: {keywords_result['raw_text'][:200]}"})
+                else:
+                    result["steps_completed"].append("keywords")
+                    # Build context string for subsequent steps
+                    kw = result["keywords"]
+                    primary = kw.get("primary_keywords", [])
+                    secondary = kw.get("secondary_keywords", [])
+                    keywords_context = f"\nKEYWORDS TO INCORPORATE:\nPrimary: {', '.join(primary)}\nSecondary: {', '.join(secondary)}"
+                    if kw.get("search_terms"):
+                        result["search_terms"] = kw["search_terms"]
 
             elif step_name == "title":
                 title_result = _run_title(
@@ -322,19 +325,30 @@ def _build_supplementary_context(scraped_data=None, document_context=None,
     return "\n\n".join(parts)
 
 
-def _call_api(client, model, system_prompt, temperature, user_prompt):
-    """Make a single Bifrost API call and return parsed JSON."""
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=4096,
-    )
-    raw = response.choices[0].message.content
-    return _parse_json(raw), raw
+def _call_api(client, model, system_prompt, temperature, user_prompt, max_retries=3):
+    """Make a single Bifrost API call with exponential backoff. Returns parsed JSON."""
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=4096,
+            )
+            raw = response.choices[0].message.content
+            return _parse_json(raw), raw
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            if any(x in error_str for x in ["401", "403", "invalid_api_key"]):
+                raise
+            if attempt < max_retries - 1:
+                time.sleep(2 ** (attempt + 1))
+    raise last_error
 
 
 def _run_keywords(client, model, system_prompt, temperature,
