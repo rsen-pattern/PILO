@@ -1,0 +1,69 @@
+{
+  "Supplements": {
+    "prioritize": ["Ingredients", "Certifications", "Diet Type", "Serving Size"],
+    "discovery_critical": ["dietary_claims", "serving_size", "item_form"],
+    "rufus_priority": ["Ingredients", "Certifications"],
+    "importance_weights": {
+      "dietary_claims": 1.0,
+      "serving_size": 0.5
+    },
+    "guidelines": "If Category = Supplements, prioritize 'Ingredients' and 'Certifications'. Include dosage, form (capsule, powder), and primary health benefit. Ensure all health claims are grounded in provided data. Rufus uses ingredients as a primary filter."
+  },
+  "Pet Supplies": {
+    "prioritize": ["Material", "Safety Certifications"],
+    "discovery_critical": ["material", "size_suitability", "breed_size"],
+    "rufus_priority": ["Material", "Safety Certifications"],
+    "guidelines": "Include material, size/weight suitability, breed size, safety certifications, and cleaning instructions. Lead with the benefit to the pet, not the feature. Mention target species and durability."
+  },
+  "Electronics": {
+    "prioritize": ["Specifications", "Compatibility", "Connectivity", "Power Source"],
+    "discovery_critical": ["connectivity", "power_source", "compatibility"],
+    "rufus_priority": ["Specifications", "Compatibility"],
+    "importance_weights": {
+      "connectivity": 1.0,
+      "power_source": 0.5
+    },
+    "guidelines": "Include key specifications, compatibility, connectivity, battery life, and dimensions. Lead with the primary use case. Mention warranty and included accessories."
+  },
+  "Clothing & Accessories": {
+    "prioritize": ["Material", "Size Range"],
+    "discovery_critical": ["material_composition", "size_range", "fit_type"],
+    "guidelines": "Include material composition, size range, care instructions, and fit type. Lead with style and occasion. Mention seasonal suitability."
+  },
+  "Health & Beauty": {
+    "prioritize": ["Ingredients", "Skin/Hair Type", "Certifications"],
+    "discovery_critical": ["ingredients", "skin_type", "is_cruelty_free"],
+    "rufus_priority": ["Ingredients", "Skin Type", "Certifications"],
+    "guidelines": "Prioritize Ingredients, Skin Type, and Certifications (Cruelty-Free, Organic). Rufus uses ingredients as a primary filter for 'Sensitive Skin' queries. Ensure OCR-ready text for images."
+  },
+  "Home & Kitchen": {
+    "prioritize": ["Dimensions", "Material", "Finish Type", "Item Weight"],
+    "discovery_critical": ["dimensions", "material", "finish_type"],
+    "importance_weights": {
+      "finish_type": 1.0,
+      "item_weight": 0.5
+    },
+    "guidelines": "Include dimensions, material, capacity, power specifications, and care instructions. Lead with the problem it solves."
+  },
+  "Sports & Outdoors": {
+    "prioritize": ["Dimensions", "Material", "Weather Resistance", "Weight Capacity"],
+    "discovery_critical": ["dimensions", "material_composition", "weight_capacity"],
+    "rufus_priority": ["Material", "Weight Capacity", "Dimensions"],
+    "guidelines": "Include dimensions, weight capacity, material composition, weather resistance, and activity type. Bullet 1 should answer 'Will this fit my [Activity]?' and Bullet 4 should specify exact dimensions for transport."
+  },
+  "Baby": {
+    "prioritize": ["Age Suitability", "Safety Certifications", "Material Type"],
+    "discovery_critical": ["age_range_description", "material_type", "safety_warning"],
+    "guidelines": "Include age suitability, safety certifications, material composition, and care instructions. Lead with the developmental benefit. 2026 CDQ mandates Material_Type must not be null."
+  },
+  "Toys": {
+    "prioritize": ["Age Range", "Safety Certifications"],
+    "discovery_critical": ["minimum_age_recommendation", "material"],
+    "guidelines": "Include age range, material, dimensions, battery requirements, and safety certifications. Lead with the play/learning benefit."
+  },
+  "Grocery": {
+    "prioritize": ["Ingredients", "Allergen Information"],
+    "discovery_critical": ["ingredients", "allergen_information"],
+    "guidelines": "Include serving size, nutritional highlights, ingredients, allergen information, storage instructions, and dietary certifications."
+  }
+}

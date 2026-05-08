@@ -124,26 +124,39 @@ def scrape_brand_url(api_key, url):
 
 
 def batch_scrape_asins(api_key, asins, regions, progress_callback=None):
-    """Scrape multiple ASINs across multiple regions.
+    """Scrape multiple ASINs across multiple regions in parallel.
 
     Returns a DataFrame of scraped data.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     results = []
     total = len(asins) * len(regions)
     done = 0
 
-    for asin in asins:
-        asin = asin.strip()
-        if not asin:
-            continue
-        for region in regions:
-            data = scrape_amazon_product(api_key, asin, region)
+    # Determine concurrency from session state if available, else default to 1
+    # We'll pass it in settings or just use a default here for the core module
+    concurrency = st.session_state.get("sb_concurrency", 1)
+    scrape_delay = st.session_state.get("sb_scrape_delay", 1.0)
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = []
+        for asin in asins:
+            asin = asin.strip()
+            if not asin:
+                continue
+            for region in regions:
+                futures.append(executor.submit(scrape_amazon_product, api_key, asin, region))
+
+        for future in as_completed(futures):
+            data = future.result()
             if data:
                 results.append(data)
             done += 1
             if progress_callback:
                 progress_callback(done / total)
-            time.sleep(1)  # Rate limit
+            if scrape_delay > 0:
+                time.sleep(scrape_delay / concurrency)  # Distribute delay
 
     if results:
         return pd.DataFrame(results)

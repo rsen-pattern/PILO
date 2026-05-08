@@ -22,7 +22,7 @@ def create_research_client(settings: dict):
 def research_product(client, model: str, product_name: str, brand_name: str,
                      category: str, existing_data: dict,
                      additional_context: str = "",
-                     temperature: float = 0.3) -> dict:
+                     temperature: float = 0.1) -> dict:
     """Research a single product using AI.
 
     Returns:
@@ -109,7 +109,7 @@ def batch_research(client, model: str, products: list, settings: dict,
             category=product.get("product_type", settings.get("category", "")),
             existing_data=product,
             additional_context=settings.get("research_context", ""),
-            temperature=settings.get("temperature", 0.3),
+            temperature=0.1,
         )
         results[sku] = result
 

@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 from core.theme import inject_pattern_css, pattern_page_header, pattern_sidebar
 from config.marketplace_configs import MARKETPLACE_CONFIGS
+from core.validator import validate_sku_content, calculate_cdq_score
 
 inject_pattern_css()
 pattern_sidebar()
@@ -56,9 +57,9 @@ with col4:
 st.divider()
 
 # ── Batch actions ──
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns([1, 1, 2])
 with col1:
-    if st.button("Approve All Remaining", key="approve_all"):
+    if st.button("Approve All Remaining", key="approve_all", use_container_width=True):
         for sku in skus_with_content:
             if sku not in qa_decisions:
                 qa_decisions[sku] = {}
@@ -66,6 +67,11 @@ with col1:
                 if qa_decisions[sku].get(mp, {}).get("status", "pending") == "pending":
                     qa_decisions[sku][mp] = {"status": "approved", "notes": "Batch approved"}
         st.session_state["qa_decisions"] = qa_decisions
+        st.rerun()
+
+with col2:
+    if st.button("Clear All Decisions", key="clear_all", use_container_width=True):
+        st.session_state["qa_decisions"] = {}
         st.rerun()
 
 # ── SKU selector with navigation arrows ──
@@ -96,11 +102,23 @@ with nav_col4:
     st.caption(f"{current_sku_idx + 1} / {len(skus_with_content)}")
 
 # ── Confidence badge for this SKU ──
-sku_research = research_results.get(selected_sku, {})
-if sku_research:
-    conf = sku_research.get("confidence", 0)
-    badge = "🟢" if conf >= 0.8 else "🟡" if conf >= 0.5 else "🔴"
-    st.info(f"AI Research Confidence: {badge} {conf:.2f}")
+research_col, cdq_col = st.columns(2)
+with research_col:
+    sku_research = research_results.get(selected_sku, {})
+    if sku_research:
+        conf = sku_research.get("confidence", 0)
+        badge = "🟢" if conf >= 0.8 else "🟡" if conf >= 0.5 else "🔴"
+        st.info(f"AI Research Confidence: {badge} {conf:.2f}")
+
+with cdq_col:
+    # We calculate CDQ for the primary marketplace for now
+    primary_mp = st.session_state.get("primary_marketplace", "amazon_au")
+    gen_primary = generated_results.get((selected_sku, primary_mp), {})
+    if gen_primary:
+        flags = validate_sku_content(gen_primary, st.session_state.get("category", "Other"), st.session_state.get("settings", {}))
+        score = calculate_cdq_score(flags)
+        badge = "🟢" if score >= 90 else "🟡" if score >= 70 else "🔴"
+        st.info(f"CDQ Score: {badge} {score}/100")
 
 # Shelf scores overlay
 sku_shelf = shelf_scores.get(selected_sku, {})
@@ -133,30 +151,44 @@ for tab_idx, tab in enumerate(tabs):
         # Get original data
         orig_row = enriched_df[enriched_df["sku"] == selected_sku].iloc[0] if "sku" in enriched_df.columns else None
 
-        # ── Title ──
-        st.markdown("**Title**")
+        # ── Title (Side-by-Side) ──
+        st.markdown("### Title")
         title_limit = mp_cfg.get("title", {}).get("char_limit", 200)
-        orig_title = orig_row["title"] if orig_row is not None and "title" in orig_row.index else ""
-        if orig_title:
-            st.caption(f"Original: {orig_title}")
+        orig_title = str(orig_row["title"]) if orig_row is not None and "title" in orig_row.index else ""
 
-        edited_title = st.text_area(
-            f"Generated Title ({len(gen.get('title', ''))} / {title_limit} chars)",
-            value=gen.get("title", ""),
-            key=f"title_{selected_sku}_{mp_key}",
-            height=80,
-        )
+        col_orig, col_pilo = st.columns(2)
+        with col_orig:
+            st.caption("Original Feed")
+            st.info(orig_title if orig_title and orig_title != "nan" else "(Empty)")
+        with col_pilo:
+            st.caption(f"PILO Generated ({len(gen.get('title', ''))} / {title_limit} chars)")
+
+            # Mobile truncation indicator
+            title_val = gen.get('title', '')
+            safe_zone = title_val[:80]
+            truncated = title_val[80:]
+            if truncated:
+                st.caption("Mobile Safe Zone (80 chars):")
+                st.code(f"{safe_zone}[TRUNCATED]", language=None)
+
+            edited_title = st.text_area(
+                "Title Edit",
+                value=gen.get("title", ""),
+                key=f"title_{selected_sku}_{mp_key}",
+                height=100,
+                label_visibility="collapsed"
+            )
         chars = len(edited_title)
         if chars > title_limit:
             st.warning(f"Title exceeds limit: {chars}/{title_limit}")
 
-        # ── Bullets ──
+        # ── Bullets (Side-by-Side) ──
         bullet_count = mp_cfg.get("bullets", {}).get("count", 0)
         bullets = gen.get("bullets", [])
         edited_bullets = []
 
         if bullet_count > 0:
-            st.markdown("**Bullet Points**")
+            st.markdown("### Bullet Points")
             bullet_limit = mp_cfg.get("bullets", {}).get("char_limit", 500)
             guides = mp_cfg.get("bullets", {}).get("guides", {})
 
@@ -167,43 +199,84 @@ for tab_idx, tab in enumerate(tabs):
                     orig_bullet = str(orig_row[f"bullet_{i+1}"])
                     if orig_bullet in ("nan", ""):
                         orig_bullet = ""
+                elif orig_row is not None and f"bullet_point_{i+1}" in orig_row.index:
+                    orig_bullet = str(orig_row[f"bullet_point_{i+1}"])
+                    if orig_bullet in ("nan", ""):
+                        orig_bullet = ""
 
-                label = f"Bullet {i+1}" + (f" — {guide}" if guide else "")
-                current_val = bullets[i] if i < len(bullets) else ""
-                edited = st.text_area(
-                    label,
-                    value=current_val,
-                    key=f"bullet_{i+1}_{selected_sku}_{mp_key}",
-                    height=60,
-                )
-                edited_bullets.append(edited)
+                st.markdown(f"**Bullet {i+1}**" + (f" — *{guide}*" if guide else ""))
+                col_orig_b, col_pilo_b = st.columns(2)
+                with col_orig_b:
+                    st.info(orig_bullet if orig_bullet else "(Empty)")
+                with col_pilo_b:
+                    current_val = bullets[i] if i < len(bullets) else ""
+                    edited = st.text_area(
+                        f"Bullet {i+1} Edit",
+                        value=current_val,
+                        key=f"bullet_{i+1}_{selected_sku}_{mp_key}",
+                        height=80,
+                        label_visibility="collapsed"
+                    )
+                    edited_bullets.append(edited)
 
-        # ── Description ──
-        st.markdown("**Description**")
+        # ── Description (Side-by-Side) ──
+        st.markdown("### Description")
         desc_limit = mp_cfg.get("description", {}).get("char_limit", 2000)
-        edited_desc = st.text_area(
-            f"Generated Description ({len(gen.get('description', ''))} / {desc_limit} chars)",
-            value=gen.get("description", ""),
-            key=f"desc_{selected_sku}_{mp_key}",
-            height=150,
-        )
+        orig_desc = str(orig_row["description"]) if orig_row is not None and "description" in orig_row.index else ""
+
+        col_orig_d, col_pilo_d = st.columns(2)
+        with col_orig_d:
+            st.caption("Original Feed")
+            st.info(orig_desc if orig_desc and orig_desc != "nan" else "(Empty)")
+        with col_pilo_d:
+            st.caption(f"PILO Generated ({len(gen.get('description', ''))} / {desc_limit} chars)")
+            edited_desc = st.text_area(
+                "Description Edit",
+                value=gen.get("description", ""),
+                key=f"desc_{selected_sku}_{mp_key}",
+                height=200,
+                label_visibility="collapsed"
+            )
         if len(edited_desc) > desc_limit:
             st.warning(f"Description exceeds limit: {len(edited_desc)}/{desc_limit}")
 
-        # ── Attributes ──
+        # ── Attributes (With Flags) ──
         attrs = gen.get("attributes", {})
         if attrs:
-            st.markdown("**Attributes**")
+            st.markdown("### Attributes")
+
+            # Show CDQ flags for this specific marketplace
+            sku_flags = validate_sku_content(gen, st.session_state.get("category", "Other"), st.session_state.get("settings", {}))
+            attr_flags = [f for f in sku_flags if f["field"].startswith("attr_") or f["field"].startswith("bullet_")]
+            if attr_flags:
+                for f in attr_flags:
+                    if f["level"] == "error":
+                        st.error(f["message"])
+                    else:
+                        st.warning(f["message"])
+
             edited_attrs = {}
-            attr_cols = st.columns(2)
+
+            # Identify which attributes might be "thin" or conflicting
+            # For now, we flag empty or "NEEDS_REVIEW"
+            attr_cols = st.columns(3)
             for i, (attr_key, attr_val) in enumerate(attrs.items()):
-                with attr_cols[i % 2]:
-                    display_val = str(attr_val) if attr_val else ""
-                    needs_review = display_val == "NEEDS_REVIEW"
-                    if needs_review:
-                        st.warning(f"{attr_key}: NEEDS REVIEW")
+                with attr_cols[i % 3]:
+                    display_val = str(attr_val) if attr_val and str(attr_val) != "nan" else ""
+
+                    # Confidence Flag
+                    is_thin = display_val == ""
+                    is_review = display_val == "NEEDS_REVIEW"
+
+                    label = attr_key
+                    if is_thin:
+                        label += " ⚠️ (Thin)"
+                    if is_review:
+                        label += " 🔴 (Review)"
+
                     edited_val = st.text_input(
-                        attr_key, value=display_val,
+                        label,
+                        value=display_val,
                         key=f"attr_{attr_key}_{selected_sku}_{mp_key}",
                     )
                     edited_attrs[attr_key] = edited_val

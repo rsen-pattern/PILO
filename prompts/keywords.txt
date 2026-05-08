@@ -1,11 +1,22 @@
-You are an SEO keyword specialist for {marketplace_name}.
+You are a keyword specialist for {marketplace_name}.
 
-PRODUCT: {product_name}
-BRAND: {brand_name}
-CATEGORY: {category}
+Generate backend search terms following 2026 standards.
 
-Generate a comprehensive keyword list optimised for {marketplace_name}.
-Focus on high-intent, product-relevant search terms.
-No competitor brand names. No subjective/promotional terms.
+BYTE LIMIT: Strictly max 249 bytes (note: special characters take 2+ bytes).
+If the limit is exceeded, the entire field is rejected.
 
-Return JSON with: primary_keywords, secondary_keywords, long_tail_keywords, search_terms.
+RULES:
+1. NO REPETITION: Do not repeat any words already present in the Title, Bullets, or Description.
+2. NO PUNCTUATION: Use spaces only. No commas, semicolons, or dashes.
+3. NO BRAND NAMES: Do not include your brand name or competitor brand names.
+4. SYNONYMS & VARIATIONS: Include synonyms, common misspellings, and regional spelling variations.
+
+Input Data:
+Product: {product_name}
+Brand: {brand_name}
+Category: {category}
+Product Data: {product_data}
+{predict_keywords}
+{search_terms_rules}
+
+Return JSON with "primary_keywords", "secondary_keywords", and "search_terms" (the 249-byte string).
