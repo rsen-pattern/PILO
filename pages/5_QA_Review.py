@@ -18,7 +18,27 @@ generated_results = st.session_state.get("generated_results", {})
 source_map = st.session_state.get("source_map")  # may be None if enrichment skipped
 
 if enriched_df is None or not generated_results:
-    st.warning("No generated content to review. Complete Content Generation first.")
+    st.markdown(
+        """
+        <div style="
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-left: 4px solid #EF4444;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        ">
+            <div style="color:#EF4444;font-weight:600;font-size:1em;margin-bottom:6px;">
+                ⚠ Step not ready
+            </div>
+            <div style="color:#E2E8F0;font-size:0.95em;margin-bottom:16px;">
+                No generated content to review. Run Content Generation first.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.page_link("pages/4_Content_Generation.py", label="← Go to Content Generation", icon="✨")
     st.stop()
 
 _SOURCE_BADGES = {
@@ -437,4 +457,8 @@ for tab_idx, tab in enumerate(tabs):
 # ── Navigation ──
 st.divider()
 if approved_count > 0:
-    st.success(f"{approved_count} items approved. Proceed to Export.")
+    col_stat, col_nav = st.columns([3, 1])
+    with col_stat:
+        st.success(f"{approved_count} items approved and ready to export.")
+    with col_nav:
+        st.page_link("pages/6_Export.py", label="Next: Export →", icon="📥")

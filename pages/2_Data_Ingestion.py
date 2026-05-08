@@ -18,9 +18,15 @@ pattern_page_header("Data Ingestion", "Upload product data from multiple sources
 st.header("Layer 1: Primary Product Feed")
 st.caption("Upload your product feed (.csv, .xlsx, .xls) or load demo data.")
 
-col1, col2 = st.columns([3, 1])
-with col2:
-    if st.button("Load KONG Demo Data (16 products)", type="secondary"):
+st.caption("New here? Start with sample data to explore the full workflow.")
+demo_col1, demo_col2, demo_col3 = st.columns([1, 2, 1])
+with demo_col2:
+    if st.button(
+        "▶ Load KONG Demo Data (16 products)",
+        type="secondary",
+        key="load_demo_top",
+        help="Loads 16 KONG pet products with pre-computed AI research — ready to generate immediately",
+    ):
         demo_df = pd.DataFrame(DEMO_PRODUCTS)
         st.session_state["feed_df"] = demo_df
         st.session_state["feed_format"] = "standard"
@@ -28,16 +34,16 @@ with col2:
             "format": "standard", "filename": "demo_data.csv",
             "rows": len(demo_df), "columns": len(demo_df.columns),
         }
-        # Pre-load demo research
         st.session_state["research_results"] = DEMO_RESEARCH
         st.success(f"Loaded {len(DEMO_PRODUCTS)} KONG products with pre-computed research.")
         st.rerun()
 
-with col1:
-    uploaded = st.file_uploader(
-        "Upload Product Feed", type=["csv", "xlsx", "xls"],
-        key="feed_upload",
-    )
+st.markdown("---")
+st.caption("Or upload your own feed:")
+uploaded = st.file_uploader(
+    "Upload Product Feed", type=["csv", "xlsx", "xls"],
+    key="feed_upload",
+)
 
 if uploaded:
     fname = uploaded.name.lower()
@@ -428,6 +434,10 @@ if st.button("Scrape External Sites", key="scrape_ext"):
 # ── Navigation ──
 st.divider()
 if feed_df is not None:
-    st.success(f"Feed loaded: {len(feed_df)} products. Proceed to Enrichment.")
+    col_stat, col_nav = st.columns([3, 1])
+    with col_stat:
+        st.success(f"Feed ready: {len(feed_df)} products loaded.")
+    with col_nav:
+        st.page_link("pages/3_Enrichment.py", label="Next: Enrichment →", icon="🔄")
 else:
     st.info("Upload a product feed or load demo data to continue.")

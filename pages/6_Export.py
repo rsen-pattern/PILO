@@ -20,7 +20,27 @@ generated_results = st.session_state.get("generated_results", {})
 qa_decisions = st.session_state.get("qa_decisions", {})
 
 if enriched_df is None or not generated_results:
-    st.warning("No content to export. Complete QA Review first.")
+    st.markdown(
+        """
+        <div style="
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-left: 4px solid #EF4444;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        ">
+            <div style="color:#EF4444;font-weight:600;font-size:1em;margin-bottom:6px;">
+                ⚠ Step not ready
+            </div>
+            <div style="color:#E2E8F0;font-size:0.95em;margin-bottom:16px;">
+                No content to export. Approve items in QA Review first.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.page_link("pages/5_QA_Review.py", label="← Go to QA Review", icon="✏️")
     st.stop()
 
 marketplace_keys = st.session_state.get("target_marketplace", ["amazon_au"])

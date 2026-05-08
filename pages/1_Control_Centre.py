@@ -51,7 +51,7 @@ st.session_state["primary_marketplace"] = primary_key
 primary_cfg = get_config(primary_key)
 
 if primary_cfg:
-    st.info(f"Guidelines auto-loaded for **{primary_cfg['name']}**. You can override any field below.")
+    st.info(f"✓ {primary_cfg['name']} rules loaded — customise any field below to override.")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1B — Brand Configuration
