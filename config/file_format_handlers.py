@@ -13,6 +13,16 @@ from urllib.parse import parse_qs
 # Format detection
 # ---------------------------------------------------------------------------
 
+def _read_csv_safe(file_bytes: bytes, **kwargs) -> pd.DataFrame:
+    """Try UTF-8 first, fall back to latin-1. Never crash on encoding."""
+    for enc in ["utf-8", "utf-8-sig", "latin-1", "windows-1252"]:
+        try:
+            return pd.read_csv(io.BytesIO(file_bytes), encoding=enc, **kwargs)
+        except (UnicodeDecodeError, Exception):
+            continue
+    return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-8", errors="replace", **kwargs)
+
+
 def detect_file_format(df_raw: pd.DataFrame, filename: str = "") -> str:
     """Detect the marketplace file format from raw DataFrame contents.
 
@@ -149,7 +159,7 @@ def parse_amazon_flat_file(file_bytes: bytes, filename: str,
     falling back to row 3 (0-indexed 2) for attributes and row 4 (0-indexed 3) for data.
     """
     if filename.endswith(".csv"):
-        raw = pd.read_csv(io.BytesIO(file_bytes), header=None)
+        raw = _read_csv_safe(file_bytes, header=None)
     else:
         raw = _read_xlsx_sheet(file_bytes, sheet_name)
 
@@ -205,7 +215,7 @@ def export_amazon_flat_file(df: pd.DataFrame, metadata_row: list = None,
 
 def parse_walmart_spec(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
-        return pd.read_csv(io.BytesIO(file_bytes))
+        return _read_csv_safe(file_bytes)
     return pd.read_excel(io.BytesIO(file_bytes))
 
 
@@ -222,7 +232,7 @@ def export_walmart_spec(df: pd.DataFrame) -> bytes:
 
 def parse_gs1_npc(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
-        return pd.read_csv(io.BytesIO(file_bytes))
+        return _read_csv_safe(file_bytes)
     return pd.read_excel(io.BytesIO(file_bytes))
 
 
@@ -238,7 +248,7 @@ def export_gs1_npc(df: pd.DataFrame) -> bytes:
 # ---------------------------------------------------------------------------
 
 def parse_ebay_file_exchange(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    return pd.read_csv(io.BytesIO(file_bytes))
+    return _read_csv_safe(file_bytes)
 
 
 def export_ebay_csv(df: pd.DataFrame) -> bytes:
@@ -253,7 +263,7 @@ def export_ebay_csv(df: pd.DataFrame) -> bytes:
 
 def parse_google_merchant(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
-        return pd.read_csv(io.BytesIO(file_bytes))
+        return _read_csv_safe(file_bytes)
     return pd.read_excel(io.BytesIO(file_bytes))
 
 
@@ -297,7 +307,7 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
     """
     if detected_format is None:
         if filename.endswith(".csv"):
-            raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
+            raw = _read_csv_safe(file_bytes, nrows=5, header=None)
         else:
             raw = _read_xlsx_sheet(file_bytes, sheet_name)
             raw = raw.head(5)
@@ -306,7 +316,7 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
     # If user explicitly set a custom header row, use generic parsing with that row
     if header_row > 0:
         if filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(file_bytes), header=None)
+            df = _read_csv_safe(file_bytes, header=None)
         else:
             df = _read_xlsx_sheet(file_bytes, sheet_name)
         if header_row < len(df):
@@ -330,7 +340,7 @@ def parse_file(file_bytes: bytes, filename: str, detected_format: str = None,
 
     # Standard format (header_row == 0) — read with header=None, then assign
     if filename.endswith(".csv"):
-        return pd.read_csv(io.BytesIO(file_bytes))
+        return _read_csv_safe(file_bytes)
     # Read from selected sheet — use header=None + dtype=str to avoid type issues
     df = _read_xlsx_sheet(file_bytes, sheet_name)
     if df.shape[0] > 0:

@@ -4,7 +4,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from config.file_format_handlers import detect_file_format, parse_file
+from config.file_format_handlers import detect_file_format, parse_file, _read_csv_safe
 from core.product_matcher import check_identifiers, find_identifier_columns
 
 STANDARD_FIELDS = [
@@ -85,7 +85,7 @@ def load_feed(uploaded_file, header_row=0, sheet_name=None):
             except Exception:
                 raw = pd.read_excel(io.BytesIO(file_bytes), nrows=5, header=None)
     elif name.endswith(".csv"):
-        raw = pd.read_csv(io.BytesIO(file_bytes), nrows=5, header=None)
+        raw = _read_csv_safe(file_bytes, nrows=5, header=None)
     else:
         raise ValueError(f"Unsupported file type: {name}")
 
