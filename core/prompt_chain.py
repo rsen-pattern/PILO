@@ -121,7 +121,13 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     product_data_str = "\n".join(f"  {k}: {v}" for k, v in product.items() if v)
     research_str = ""
     if research_data and research_data.get("research"):
-        research_str = json.dumps(research_data["research"], indent=2)
+        if research_data.get("_below_threshold"):
+            research_str = (
+                "NOTE: AI research below confidence threshold — treat as supplementary only, prefer feed data.\n"
+                + json.dumps(research_data["research"], indent=2)
+            )
+        else:
+            research_str = json.dumps(research_data["research"], indent=2)
 
     # Load category context
     category_name = settings.get("category", "Other")
@@ -180,15 +186,18 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, predict_keywords,
                     supplementary_context,
                 )
-                result["keywords"] = keywords_result
-                result["steps_completed"].append("keywords")
-                # Build context string for subsequent steps
-                kw = keywords_result
-                primary = kw.get("primary_keywords", [])
-                secondary = kw.get("secondary_keywords", [])
-                keywords_context = f"\nKEYWORDS TO INCORPORATE:\nPrimary: {', '.join(primary)}\nSecondary: {', '.join(secondary)}"
-                if kw.get("search_terms"):
-                    result["search_terms"] = kw["search_terms"]
+                result["keywords"] = keywords_result if "raw_text" not in keywords_result else {}
+                if "raw_text" in keywords_result:
+                    result["errors"].append({"step": "keywords", "error": f"JSON parse failure: {keywords_result['raw_text'][:200]}"})
+                else:
+                    result["steps_completed"].append("keywords")
+                    # Build context string for subsequent steps
+                    kw = result["keywords"]
+                    primary = kw.get("primary_keywords", [])
+                    secondary = kw.get("secondary_keywords", [])
+                    keywords_context = f"\nKEYWORDS TO INCORPORATE:\nPrimary: {', '.join(primary)}\nSecondary: {', '.join(secondary)}"
+                    if kw.get("search_terms"):
+                        result["search_terms"] = kw["search_terms"]
 
             elif step_name == "title":
                 title_result = _run_title(
@@ -196,9 +205,12 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, keywords_context, settings,
                     supplementary_context,
                 )
-                result["title"] = title_result.get("title", "")
-                result["title_char_count"] = title_result.get("char_count", len(result["title"]))
-                result["steps_completed"].append("title")
+                if "raw_text" in title_result:
+                    result["errors"].append({"step": "title", "error": f"JSON parse failure: {title_result['raw_text'][:200]}"})
+                else:
+                    result["title"] = title_result.get("title") or ""
+                    result["title_char_count"] = title_result.get("char_count", len(result["title"]))
+                    result["steps_completed"].append("title")
 
             elif step_name == "bullets":
                 bullets_result = _run_bullets(
@@ -206,8 +218,11 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, keywords_context,
                     result.get("title", ""), settings, supplementary_context,
                 )
-                result["bullets"] = bullets_result.get("bullets", [])
-                result["steps_completed"].append("bullets")
+                if "raw_text" in bullets_result:
+                    result["errors"].append({"step": "bullets", "error": f"JSON parse failure: {bullets_result['raw_text'][:200]}"})
+                else:
+                    result["bullets"] = bullets_result.get("bullets", [])
+                    result["steps_completed"].append("bullets")
 
             elif step_name == "description":
                 desc_result = _run_description(
@@ -216,9 +231,12 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     result.get("title", ""), result.get("bullets", []), settings,
                     supplementary_context,
                 )
-                result["description"] = desc_result.get("description", "")
-                result["desc_char_count"] = desc_result.get("char_count", len(result["description"]))
-                result["steps_completed"].append("description")
+                if "raw_text" in desc_result:
+                    result["errors"].append({"step": "description", "error": f"JSON parse failure: {desc_result['raw_text'][:200]}"})
+                else:
+                    result["description"] = desc_result.get("description") or ""
+                    result["desc_char_count"] = desc_result.get("char_count", len(result["description"]))
+                    result["steps_completed"].append("description")
 
             elif step_name == "attributes":
                 attr_result = _run_attributes(
@@ -226,25 +244,34 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
                     product, cfg, product_data_str, research_str,
                     supplementary_context,
                 )
-                result["attributes"] = attr_result
-                result["steps_completed"].append("attributes")
+                if "raw_text" in attr_result:
+                    result["errors"].append({"step": "attributes", "error": f"JSON parse failure: {attr_result['raw_text'][:200]}"})
+                else:
+                    result["attributes"] = attr_result
+                    result["steps_completed"].append("attributes")
 
             elif step_name == "special_features":
                 sf_result = _run_special_features(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, supplementary_context,
                 )
-                result["special_features"] = sf_result.get("special_features", [])
-                result["steps_completed"].append("special_features")
+                if "raw_text" in sf_result:
+                    result["errors"].append({"step": "special_features", "error": f"JSON parse failure: {sf_result['raw_text'][:200]}"})
+                else:
+                    result["special_features"] = sf_result.get("special_features", [])
+                    result["steps_completed"].append("special_features")
 
             elif step_name == "item_type":
                 it_result = _run_item_type(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str,
                 )
-                result["item_type"] = it_result.get("item_type", "")
-                result["category_path"] = it_result.get("category_path", "")
-                result["steps_completed"].append("item_type")
+                if "raw_text" in it_result:
+                    result["errors"].append({"step": "item_type", "error": f"JSON parse failure: {it_result['raw_text'][:200]}"})
+                else:
+                    result["item_type"] = it_result.get("item_type") or ""
+                    result["category_path"] = it_result.get("category_path", "")
+                    result["steps_completed"].append("item_type")
 
         except Exception as e:
             result["errors"].append({"step": step_name, "error": str(e)})
@@ -304,19 +331,30 @@ def _build_supplementary_context(scraped_data=None, document_context=None,
     return "\n\n".join(parts)
 
 
-def _call_api(client, model, system_prompt, temperature, user_prompt):
-    """Make a single Bifrost API call and return parsed JSON."""
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=4096,
-    )
-    raw = response.choices[0].message.content
-    return _parse_json(raw), raw
+def _call_api(client, model, system_prompt, temperature, user_prompt, max_retries=3):
+    """Make a single Bifrost API call with exponential backoff. Returns parsed JSON."""
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=4096,
+            )
+            raw = response.choices[0].message.content
+            return _parse_json(raw), raw
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            if any(x in error_str for x in ["401", "403", "invalid_api_key"]):
+                raise
+            if attempt < max_retries - 1:
+                time.sleep(2 ** (attempt + 1))
+    raise last_error
 
 
 def _run_keywords(client, model, system_prompt, temperature,

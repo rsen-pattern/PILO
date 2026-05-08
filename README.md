@@ -1,6 +1,8 @@
 # PILO — Pattern Intelligence Listing Optimisation
 
-AI-powered product content engine that generates optimised titles, bullet points, descriptions, and supplemental attributes for marketplace listings at scale.
+AI-powered product content engine that generates optimised titles, bullet
+points, descriptions, keywords, supplemental attributes, and special features
+for marketplace listings at scale.
 
 ## Quick Start
 
@@ -11,32 +13,59 @@ streamlit run app.py
 
 ## Configuration
 
-Set your API keys via environment variables or Streamlit secrets:
+Set API keys via Streamlit secrets (`.streamlit/secrets.toml`) or environment
+variables:
 
-```bash
-export ANTHROPIC_API_KEY="your-key-here"
-export SCRAPINGBEE_API_KEY="your-key-here"  # optional
 ```
-
-Or configure them in the Settings page of the app.
+BIFROST_API_KEY=your-key-here
+SCRAPINGBEE_API_KEY=your-key-here  # optional, only needed for web scraping
+```
 
 ## Workflow
 
-1. **Settings** — Configure brand, category, marketplace, and API keys
-2. **Data Ingestion** — Upload product feed + supplementary data (or use "Load Demo Data")
-3. **Enrichment** — Review merged/enriched data from all sources
-4. **Content Generation** — Run Claude AI to generate optimised content
-5. **QA Review** — Human review and edit generated content
-6. **Export** — Download marketplace-formatted files (Amazon, Walmart, Woolworths, Google Shopping)
+1. **Control Centre** — Configure marketplace, brand, AI model, output format
+2. **Data Ingestion** — Upload feed + documents + cross-retail data + AI research
+3. **Enrichment** — Merge all data layers with source provenance tracking
+4. **Content Generation** — Run 7-step prompt chain per SKU × marketplace
+5. **QA Review** — Human review, inline editing, approve/reject with audit trail
+6. **Export** — Marketplace-formatted files, comparison output, PXM JSON, ZIP
+7. **Cost Dashboard** — Token usage and cost breakdown by step and marketplace
 
-## Demo
+## Supported Marketplaces
 
-Click "Load Demo Data" on the Data Ingestion page to load 5 sample KONG pet products with sparse attributes (~28% completeness) and see the full workflow in action.
+Amazon AU, Amazon US, Amazon UK, Walmart US, Woolworths AU, eBay AU,
+Google Shopping / UCP
+
+## Demo Mode
+
+Click "Load KONG Demo Data" on the Data Ingestion page to load 16 sample
+pet products with pre-computed AI research and ~25% attribute completeness.
+
+## Known Behaviours
+
+- **Web scraping**: ScrapingBee columns (`scraped_title`, `scraped_bullet_N`
+  etc) are automatically normalised to standard field names during enrichment.
+
+- **Confidence threshold**: AI research below the threshold is still used in
+  generation but is flagged in prompts so the model deprioritises it.
+  It does not exclude the research entirely.
+
+- **Batch size**: The UI caps generation at 50 SKUs per run. For larger
+  catalogues use the Resume Previous Run feature — complete runs in
+  batches and resume if interrupted.
+
+- **Cache files**: Generation progress is saved to `.pilo_cache/*.jsonl`
+  (gitignored). These files contain product data — do not share them.
+
+- **Temperature**: All generation runs at 0.1 regardless of the temperature
+  slider. The slider is reserved for future research steps.
 
 ## Tech Stack
 
-- Python 3.10+ / Streamlit
-- Anthropic Claude API (content generation)
-- ScrapingBee (optional web scraping)
-- pandas / openpyxl / xlsxwriter (data processing & export)
-- PyPDF2 / python-docx (document ingestion)
+Python 3.10+ / Streamlit / Anthropic Claude via Bifrost /
+ScrapingBee (optional) / pandas / openpyxl / xlsxwriter /
+PyPDF2 / python-docx / BeautifulSoup
+
+## Team
+
+Alison Ong, Jefferson Chen, Rahul Sengupta — Pattern eCommerce

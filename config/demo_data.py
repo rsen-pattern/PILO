@@ -214,132 +214,116 @@ DEMO_PRODUCTS = [
 
 # Pre-computed AI research summaries with confidence scores
 DEMO_RESEARCH = {
-    "KONG-001": {
-        "confidence": 0.92,
-        "summary": "The KONG Classic is the gold standard in dog toys, made in the USA from proprietary natural red rubber. Features an unpredictable bounce for interactive play and a hollow centre that can be stuffed with treats. Recommended by veterinarians and trainers worldwide. Available in multiple sizes (XS to XXL). Dishwasher safe.",
+    "KONG-001": {"confidence": 0.92, "research": {
+        "product_summary": "The KONG Classic is the gold standard in dog toys, made in the USA from proprietary natural red rubber. Features an unpredictable bounce for interactive play and a hollow centre that can be stuffed with treats. Recommended by veterinarians and trainers worldwide. Available in multiple sizes (XS to XXL). Dishwasher safe.",
         "key_features": ["Unpredictable bounce", "Stuffable hollow centre", "Vet recommended", "Dishwasher safe", "Made in USA"],
         "materials": "KONG Classic natural red rubber compound",
         "target_audience": "Dog owners seeking durable, enrichment toys for moderate to strong chewers",
         "differentiators": ["Original since 1976", "Proprietary rubber formula", "Vet-endorsed"],
-    },
-    "KONG-002": {
-        "confidence": 0.88,
-        "summary": "KONG Puppy is made from a softer, customised rubber formula designed for growing puppy teeth and gums. Available in pink or blue. Helps teach appropriate chewing behaviour.",
+    }},
+    "KONG-002": {"confidence": 0.88, "research": {
+        "product_summary": "KONG Puppy is made from a softer, customised rubber formula designed for growing puppy teeth and gums. Available in pink or blue. Helps teach appropriate chewing behaviour.",
         "key_features": ["Softer puppy-specific rubber", "Customised formula for baby teeth", "Stuffable", "Available in pink or blue"],
         "materials": "Softer natural rubber (puppy formula)",
         "target_audience": "Puppy owners (up to 9 months)",
         "differentiators": ["Age-specific rubber hardness", "Teething relief"],
-    },
-    "KONG-003": {
-        "confidence": 0.90,
-        "summary": "KONG Extreme uses the strongest rubber formula in the KONG line, designed for power chewers. Black ultra-durable rubber withstands aggressive chewing. Same stuffable design as Classic.",
+    }},
+    "KONG-003": {"confidence": 0.90, "research": {
+        "product_summary": "KONG Extreme uses the strongest rubber formula in the KONG line, designed for power chewers. Black ultra-durable rubber withstands aggressive chewing. Same stuffable design as Classic.",
         "key_features": ["Ultra-strong black rubber", "Power chewer rated", "Stuffable", "Made in USA"],
         "materials": "KONG Extreme black ultra-durable rubber compound",
         "target_audience": "Owners of aggressive/power chewers (large breeds, determined chewers)",
         "differentiators": ["Strongest KONG rubber formula", "Power chewer approved"],
-    },
-    "KONG-004": {
-        "confidence": 0.85,
-        "summary": "KONG Cozie plush toys feature an extra layer of material for added strength. Minimal stuffing for less mess. Indoor cuddle/play toy, not designed for aggressive chewing.",
+    }},
+    "KONG-004": {"confidence": 0.85, "research": {
+        "product_summary": "KONG Cozie plush toys feature an extra layer of material for added strength. Minimal stuffing for less mess. Indoor cuddle/play toy, not designed for aggressive chewing.",
         "key_features": ["Extra reinforced fabric", "Minimal stuffing", "Indoor play", "Squeaker inside"],
         "materials": "Reinforced plush fabric with minimal polyester fill",
         "target_audience": "Dog owners wanting a soft comfort/cuddle toy",
         "differentiators": ["Reinforced construction vs standard plush", "Multiple character designs"],
-    },
-    "KONG-005": {
-        "confidence": 0.87,
-        "summary": "The KONG Wobbler is a treat-dispensing toy that wobbles, spins, and rolls as dogs push it around. Action-packed food-dispensing toy that provides mental stimulation. Unscrews for easy filling and cleaning.",
+    }},
+    "KONG-005": {"confidence": 0.87, "research": {
+        "product_summary": "The KONG Wobbler is a treat-dispensing toy that wobbles, spins, and rolls as dogs push it around. Action-packed food-dispensing toy that provides mental stimulation. Unscrews for easy filling and cleaning.",
         "key_features": ["Treat dispensing", "Wobble action", "Unscrews for easy filling", "Mental stimulation", "BPA-free"],
         "materials": "FDA-compliant food-grade polymer",
         "target_audience": "Dog owners seeking mental enrichment/slow feeding solutions",
         "differentiators": ["Unique wobble motion", "Food-grade polymer", "Easy clean design"],
-    },
-    "KONG-006": {
-        "confidence": 0.83,
-        "summary": "KONG Goodie Bone is a bone-shaped classic rubber toy with two stuffable ends. Great for stuffing with KONG Easy Treat or kibble for extended play time.",
+    }},
+    "KONG-006": {"confidence": 0.83, "research": {
+        "product_summary": "KONG Goodie Bone is a bone-shaped classic rubber toy with two stuffable ends. Great for stuffing with KONG Easy Treat or kibble for extended play time.",
         "key_features": ["Two stuffable ends", "Classic rubber durability", "Bone shape"],
         "materials": "KONG Classic natural red rubber",
         "target_audience": "Dog owners wanting a stuffable chew toy",
         "differentiators": ["Dual-end stuffing capacity", "Bone shape for natural chewing posture"],
-    },
-    "KONG-007": {
-        "confidence": 0.78,
-        "summary": "KONG Squeezz Ball features a recessed squeaker that won't stop working even if punctured. Textured surface for easy pickup. Bouncy and durable for fetch.",
+    }},
+    "KONG-007": {"confidence": 0.78, "research": {
+        "product_summary": "KONG Squeezz Ball features a recessed squeaker that won't stop working even if punctured. Textured surface for easy pickup. Bouncy and durable for fetch.",
         "key_features": ["Recessed squeaker", "Won't stop squeaking", "Textured for grip", "Bouncy"],
         "materials": "Durable TPR (thermoplastic rubber)",
         "target_audience": "Active dogs who love fetch and squeaky toys",
         "differentiators": ["Patented recessed squeaker technology"],
-    },
-    "KONG-008": {
-        "confidence": 0.86,
-        "summary": "The KONG Flyer is made from flexible, soft KONG Classic rubber — gentle on teeth and gums during catching. Designed for healthy interactive outdoor play.",
+    }},
+    "KONG-008": {"confidence": 0.86, "research": {
+        "product_summary": "The KONG Flyer is made from flexible, soft KONG Classic rubber — gentle on teeth and gums during catching. Designed for healthy interactive outdoor play.",
         "key_features": ["Soft rubber disc", "Gentle on teeth", "Long-distance flight", "Flexible"],
         "materials": "KONG Classic natural rubber",
         "target_audience": "Active dog owners who enjoy outdoor fetch/disc games",
         "differentiators": ["Softer than hard plastic frisbees", "KONG rubber durability"],
-    },
-    "KONG-009": {
-        "confidence": 0.75,
-        "summary": "KONG Dental Stick features unique Denta-Ridges that clean teeth as dogs chew. Hollow centre for stuffing with treats or toothpaste. Promotes dental hygiene during play.",
+    }},
+    "KONG-009": {"confidence": 0.75, "research": {
+        "product_summary": "KONG Dental Stick features unique Denta-Ridges that clean teeth as dogs chew. Hollow centre for stuffing with treats or toothpaste. Promotes dental hygiene during play.",
         "key_features": ["Denta-Ridges for cleaning", "Stuffable for treats", "Dental hygiene", "Classic rubber"],
         "materials": "KONG Classic natural rubber with textured ridges",
         "target_audience": "Dog owners concerned about dental health",
         "differentiators": ["Dental cleaning ridges", "Combines play with oral care"],
-    },
-    "KONG-010": {
-        "confidence": 0.72,
-        "summary": "KONG Marathon is a long-lasting chew treat designed to fit KONG rubber toys. Provides extended chewing satisfaction. Available in chicken and liver flavours.",
+    }},
+    "KONG-010": {"confidence": 0.72, "research": {
+        "product_summary": "KONG Marathon is a long-lasting chew treat designed to fit KONG rubber toys. Provides extended chewing satisfaction. Available in chicken and liver flavours.",
         "key_features": ["Long-lasting chew", "Fits KONG toys", "Available flavours"],
         "materials": "Natural ingredients, no artificial colours",
         "target_audience": "Dog owners seeking long-lasting treat refills for KONG toys",
         "differentiators": ["Designed to fit KONG toy slots", "Extended chew duration"],
-    },
-    "KONG-011": {
-        "confidence": 0.80,
-        "summary": "KONG Wubba combines a durable ball covered in reinforced nylon fabric with long tails for shaking and tug games. Squeaker inside for added interest.",
+    }},
+    "KONG-011": {"confidence": 0.80, "research": {
+        "product_summary": "KONG Wubba combines a durable ball covered in reinforced nylon fabric with long tails for shaking and tug games. Squeaker inside for added interest.",
         "key_features": ["Reinforced nylon fabric", "Squeaker ball inside", "Floppy tails for tug", "Durable construction"],
         "materials": "Ballistic nylon over rubber ball",
         "target_audience": "Dogs who love tug and fetch games",
         "differentiators": ["Unique tail design for tug", "Multi-play toy (tug, fetch, shake)"],
-    },
-    "KONG-012": {
-        "confidence": 0.84,
-        "summary": "KONG AirDog Squeakair combines a tennis ball with a squeaker. Non-abrasive felt won't damage teeth unlike standard tennis balls. Available in multiple sizes and packs.",
+    }},
+    "KONG-012": {"confidence": 0.84, "research": {
+        "product_summary": "KONG AirDog Squeakair combines a tennis ball with a squeaker. Non-abrasive felt won't damage teeth unlike standard tennis balls. Available in multiple sizes and packs.",
         "key_features": ["Non-abrasive felt", "Built-in squeaker", "Tennis ball shape", "Multi-pack"],
         "materials": "Non-abrasive felt covering over rubber ball",
         "target_audience": "Dog owners who want a safer tennis ball alternative",
         "differentiators": ["Non-abrasive felt (safer than regular tennis balls)", "Integrated squeaker"],
-    },
-    "KONG-013": {
-        "confidence": 0.76,
-        "summary": "KONG Stuff-A-Ball features a treat-stuffing groove design with Denta-Ridges for dental cleaning. Combine chewing fun with treat reward and dental hygiene.",
+    }},
+    "KONG-013": {"confidence": 0.76, "research": {
+        "product_summary": "KONG Stuff-A-Ball features a treat-stuffing groove design with Denta-Ridges for dental cleaning. Combine chewing fun with treat reward and dental hygiene.",
         "key_features": ["Treat stuffing grooves", "Denta-Ridges", "Classic rubber", "Dishwasher safe"],
         "materials": "KONG Classic natural rubber",
         "target_audience": "Dog owners wanting combined treat/dental toy",
         "differentiators": ["Groove design holds treats differently than hollow KONG", "Dental cleaning built in"],
-    },
-    "KONG-014": {
-        "confidence": 0.79,
-        "summary": "KONG Jumbler features an interior tennis ball with handles on the outside. Two-in-one design with squeakers for interactive indoor/outdoor play.",
+    }},
+    "KONG-014": {"confidence": 0.79, "research": {
+        "product_summary": "KONG Jumbler features an interior tennis ball with handles on the outside. Two-in-one design with squeakers for interactive indoor/outdoor play.",
         "key_features": ["Interior tennis ball", "Exterior handles", "Dual squeakers", "Interactive play"],
         "materials": "Durable TPR with fabric handles",
         "target_audience": "Active dogs who enjoy interactive play with owners",
         "differentiators": ["Unique ball-in-ball design", "Handles for easy tug and pickup"],
-    },
-    "KONG-015": {
-        "confidence": 0.82,
-        "summary": "KONG Easy Treat is a creamy paste designed to fill KONG toys. Simply squeeze directly into any KONG toy for instant enrichment. Multiple flavours available.",
+    }},
+    "KONG-015": {"confidence": 0.82, "research": {
+        "product_summary": "KONG Easy Treat is a creamy paste designed to fill KONG toys. Simply squeeze directly into any KONG toy for instant enrichment. Multiple flavours available.",
         "key_features": ["Easy squeeze application", "Designed for KONG toys", "Can be frozen", "Multiple flavours"],
         "materials": "Food-grade ingredients, no artificial preservatives",
         "target_audience": "KONG toy owners seeking convenient treat filling",
         "differentiators": ["Purpose-built for KONG toys", "Freeze for extended play"],
-    },
-    "KONG-016": {
-        "confidence": 0.81,
-        "summary": "KONG Senior is made from a gentler rubber formula specifically designed for aging dogs with less powerful jaws and sensitive teeth/gums.",
+    }},
+    "KONG-016": {"confidence": 0.81, "research": {
+        "product_summary": "KONG Senior is made from a gentler rubber formula specifically designed for aging dogs with less powerful jaws and sensitive teeth/gums.",
         "key_features": ["Gentle senior rubber formula", "Stuffable", "Softer than Classic", "Made in USA"],
         "materials": "KONG Senior gentle rubber compound (purple)",
         "target_audience": "Senior dog owners (7+ years)",
         "differentiators": ["Age-specific formula softer than Classic", "Designed for aging teeth/gums"],
-    },
+    }},
 }

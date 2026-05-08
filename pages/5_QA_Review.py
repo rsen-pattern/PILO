@@ -108,7 +108,11 @@ with col1:
                 qa_decisions[sku] = {}
             for mp in marketplace_keys:
                 if qa_decisions[sku].get(mp, {}).get("status", "pending") == "pending":
-                    qa_decisions[sku][mp] = {"status": "approved", "notes": "Batch approved"}
+                    qa_decisions[sku][mp] = {
+                        "status": "approved", "notes": "Batch approved",
+                        "reviewer": st.session_state.get("reviewer_name", "Unknown") or "Unknown",
+                        "timestamp": datetime.now().isoformat(),
+                    }
         st.session_state["qa_decisions"] = qa_decisions
         st.rerun()
 
@@ -428,7 +432,7 @@ for tab_idx, tab in enumerate(tabs):
 
             qa_decisions[selected_sku][mp_key] = decision_data
             st.session_state["qa_decisions"] = qa_decisions
-            st.success(f"Saved: {selected_sku} / {mp_name} → {decision}")
+            st.toast(f"✓ Saved: {selected_sku} / {mp_name} → {decision}", icon="✅")
 
 # ── Navigation ──
 st.divider()

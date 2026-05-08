@@ -106,7 +106,29 @@ if _last_cache and __import__("os").path.exists(_last_cache):
         st.success(f"Loaded {len(st.session_state['generated_results'])} cached results.")
         st.rerun()
 
-# ── Cost estimate ──
+# ── Pre-flight validation ──
+preflight = validate_feed_preflight(enriched_df, marketplace_keys)
+for msg in preflight["errors"]:
+    st.error(f"Feed error: {msg}")
+for msg in preflight["warnings"]:
+    st.warning(f"Feed warning: {msg}")
+if preflight["passed"]:
+    st.success("Feed validated — ready to generate")
+else:
+    st.stop()
+
+conf_thresh = st.session_state.get("confidence_threshold", 0.7)
+low_conf = sum(
+    1 for r in st.session_state.get("research_results", {}).values()
+    if r.get("confidence", 1.0) < conf_thresh
+)
+if low_conf > 0:
+    st.info(
+        f"{low_conf} SKU(s) have AI research below the {conf_thresh:.0%} confidence threshold. "
+        f"Research will be flagged in prompts — feed data will take priority."
+    )
+
+# ── Cost estimate (only shown when preflight passed) ──
 est = estimate_run_cost(
     sku_count=len(selected_skus),
     marketplace_keys=marketplace_keys,
@@ -137,17 +159,6 @@ if _est_cost > 20.0:
     _confirmed = st.checkbox("I confirm I want to proceed with this run", key="cost_confirm")
 elif _est_cost > 5.0:
     st.warning(f"Large run — review estimate before proceeding (${_est_cost:.2f})")
-
-# ── Pre-flight validation ──
-preflight = validate_feed_preflight(enriched_df, marketplace_keys)
-for msg in preflight["errors"]:
-    st.error(f"Feed error: {msg}")
-for msg in preflight["warnings"]:
-    st.warning(f"Feed warning: {msg}")
-if preflight["passed"]:
-    st.success("Feed validated — ready to generate")
-else:
-    st.stop()
 
 # ── Generate button ──
 if st.button("Generate Content", type="primary", width="stretch",
@@ -207,15 +218,17 @@ if results:
         r = results[key]
         mp_name = MARKETPLACE_CONFIGS.get(mp, {}).get("name", mp)
         with st.expander(f"{sku} — {mp_name}"):
-            if r.get("title"):
-                st.write(f"**Title** ({len(r['title'])} chars): {r['title']}")
+            title_text = r.get("title") or ""
+            if title_text:
+                st.write(f"**Title** ({len(title_text)} chars): {title_text}")
             if r.get("bullets"):
                 st.write("**Bullets:**")
                 for i, b in enumerate(r["bullets"], 1):
                     st.write(f"  {i}. {b}")
-            if r.get("description"):
-                st.write(f"**Description** ({len(r['description'])} chars):")
-                st.caption(r["description"][:300] + "..." if len(r["description"]) > 300 else r["description"])
+            desc_text = r.get("description") or ""
+            if desc_text:
+                st.write(f"**Description** ({len(desc_text)} chars):")
+                st.caption(desc_text[:300] + "..." if len(desc_text) > 300 else desc_text)
             if r.get("attributes"):
                 st.write(f"**Attributes:** {len(r['attributes'])} filled")
             if r.get("errors"):

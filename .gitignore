@@ -5,3 +5,5 @@ __pycache__/
 dist/
 build/
 .streamlit/secrets.toml
+.pilo_cache/
+*.jsonl

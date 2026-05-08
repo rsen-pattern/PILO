@@ -30,17 +30,34 @@ def _create_client(settings):
 
 
 def get_doc_context_for_sku(sku, ingested_docs):
-    """Get relevant document context for a SKU."""
+    """Get relevant document context for a SKU, capped at 8000 chars total."""
     if not ingested_docs:
         return None
     relevant_texts = []
+    total_cap = 8000
+    total_len = 0
     for doc in ingested_docs:
         applicable = doc.get("applicable_skus", [])
         if applicable == ["All"] or sku in applicable:
-            relevant_texts.append(
-                f"[{doc['type']} - {doc['filename']}]:\n{doc['text'][:3000]}"
-            )
+            remaining = total_cap - total_len
+            if remaining <= 0:
+                break
+            text_chunk = doc["text"][:min(3000, remaining)]
+            relevant_texts.append(f"[{doc['type']} - {doc['filename']}]:\n{text_chunk}")
+            total_len += len(text_chunk)
     return "\n\n".join(relevant_texts) if relevant_texts else None
+
+
+def _sanitize_for_json(obj):
+    """Recursively convert non-serializable types to strings."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        return str(obj)
 
 
 def load_cached_run(cache_file: str) -> dict:
@@ -123,6 +140,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         row = enriched_df[row_mask].iloc[0]
         product = row_to_dict(row)
         sku_research = research_data.get(sku, None)
+        conf_threshold = settings.get("confidence_threshold", 0.7)
+        if sku_research and sku_research.get("confidence", 0) < conf_threshold:
+            sku_research = {**sku_research, "_below_threshold": True}
         sku_predict = predict_keywords.get(sku, [])
 
         # Gather scraped data for this SKU
@@ -172,9 +192,13 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
                         crossretail_data=sku_crossretail,
                         progress_callback=step_callback,
                     )
-                    with open(cache_file, "a") as _cf:
-                        _cf.write(json.dumps({"sku": sku, "marketplace": mp_key, "result": chain_result}) + "\n")
-                        _cf.flush()
+                    try:
+                        safe_result = _sanitize_for_json(chain_result)
+                        with open(cache_file, "a") as _cf:
+                            _cf.write(json.dumps({"sku": sku, "marketplace": mp_key, "result": safe_result}) + "\n")
+                            _cf.flush()
+                    except Exception as _cache_err:
+                        st.caption(f"Cache write warning: {_cache_err}")
                 results[(sku, mp_key)] = chain_result
 
                 with status_container:

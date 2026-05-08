@@ -23,6 +23,23 @@ SOURCE_COLOURS = {
 }
 
 
+def normalise_scraped_columns(scraped_df):
+    """Map ScrapingBee output column names to PILO standard field names."""
+    if scraped_df is None or scraped_df.empty:
+        return scraped_df
+    rename_map = {}
+    for col in scraped_df.columns:
+        if col == "scraped_title":
+            rename_map[col] = "title"
+        elif col == "scraped_description":
+            rename_map[col] = "description"
+        elif col.startswith("scraped_bullet_"):
+            rename_map[col] = f"bullet_{col.replace('scraped_bullet_', '')}"
+        elif col.startswith("scraped_attr_"):
+            rename_map[col] = col.replace("scraped_attr_", "")
+    return scraped_df.rename(columns=rename_map)
+
+
 def merge_layers(feed_df, scraped_df=None, crossretail_df=None,
                  document_data=None, ai_research_data=None,
                  external_df=None, overwrite=False):
@@ -50,6 +67,7 @@ def merge_layers(feed_df, scraped_df=None, crossretail_df=None,
 
     # Merge each layer in trust-priority order
     if scraped_df is not None and not scraped_df.empty:
+        scraped_df = normalise_scraped_columns(scraped_df)
         enriched, source_map = _merge_df_layer(
             enriched, scraped_df, source_map, "scraped", overwrite
         )
