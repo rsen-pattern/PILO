@@ -102,7 +102,7 @@ st.divider()
 # ── Batch actions ──
 col1, col2, col3 = st.columns([1, 1, 2])
 with col1:
-    if st.button("Approve All Remaining", key="approve_all", use_container_width=True):
+    if st.button("Approve All Remaining", key="approve_all", width="stretch"):
         for sku in skus_with_content:
             if sku not in qa_decisions:
                 qa_decisions[sku] = {}
@@ -113,7 +113,7 @@ with col1:
         st.rerun()
 
 with col2:
-    if st.button("Clear All Decisions", key="clear_all", use_container_width=True):
+    if st.button("Clear All Decisions", key="clear_all", width="stretch"):
         st.session_state["qa_decisions"] = {}
         st.rerun()
 

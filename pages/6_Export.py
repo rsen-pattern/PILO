@@ -78,7 +78,7 @@ for mp_key in marketplace_keys:
 
         if export_df is not None and not export_df.empty:
             st.write(f"{len(export_df)} rows")
-            st.dataframe(export_df.head(5), use_container_width=True)
+            st.dataframe(export_df.head(5), width="stretch")
             st.download_button(
                 f"Download {mp_name} Export (.xlsx)",
                 data=df_to_excel_bytes(export_df),
@@ -104,7 +104,7 @@ with tab_univ:
     universal_df = build_universal_export(enriched_df, generated_results, qa_decisions, marketplace_keys)
     if not universal_df.empty:
         st.write(f"{len(universal_df)} rows × {len(universal_df.columns)} columns")
-        st.dataframe(universal_df.head(5), use_container_width=True)
+        st.dataframe(universal_df.head(5), width="stretch")
         st.download_button(
             "Download Universal Export (.xlsx)",
             data=df_to_excel_bytes(universal_df),
@@ -117,7 +117,7 @@ with tab_comp:
     comp_df = build_comparison_output(enriched_df, generated_results, qa_decisions, marketplace_keys)
     if not comp_df.empty:
         st.write(f"{len(comp_df)} field changes tracked")
-        st.dataframe(comp_df.head(10), use_container_width=True)
+        st.dataframe(comp_df.head(10), width="stretch")
         st.download_button(
             "Download Comparison (.xlsx)",
             data=df_to_excel_bytes(comp_df),

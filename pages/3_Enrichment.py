@@ -114,7 +114,7 @@ if research_results:
     conf_df = pd.DataFrame(conf_data)
     st.dataframe(
         conf_df[["SKU", "Confidence", "Flagged"]],
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
 st.divider()
@@ -142,7 +142,7 @@ styled = display_df.style.apply(
     lambda _: style_enriched_table(display_df, source_subset),
     axis=None,
 )
-st.dataframe(styled, use_container_width=True, height=500)
+st.dataframe(styled, width="stretch", height=500)
 
 # ── Legend ──
 with st.expander("Colour Legend"):
@@ -180,7 +180,7 @@ if "sku" in enriched_df.columns:
                     "Value": str(val) if pd.notna(val) and str(val).strip() not in ("", "nan") else "",
                     "Source": info.get("label", source),
                 })
-            st.dataframe(pd.DataFrame(detail_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(detail_data), width="stretch", hide_index=True)
 
             # Show research confidence if available
             sku_research = research_results.get(selected_sku)
@@ -202,7 +202,7 @@ with col_exp1:
         data=csv_data,
         file_name="pilo_enriched_data.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 with col_exp2:
     if source_map is not None:
@@ -212,7 +212,7 @@ with col_exp2:
             data=source_csv,
             file_name="pilo_source_map.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
 st.divider()

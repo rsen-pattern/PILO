@@ -128,7 +128,7 @@ with st.container(border=True):
          "Steps": v["steps"], "API Calls": v["api_calls"], "Est. Cost": f"${v['cost']:.4f}"}
         for k, v in est["breakdown"].items()
     ]
-    st.dataframe(pd.DataFrame(_brows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(_brows), width="stretch", hide_index=True)
 
 _est_cost = est["estimated_cost_usd"]
 _confirmed = True
@@ -150,7 +150,7 @@ else:
     st.stop()
 
 # ── Generate button ──
-if st.button("Generate Content", type="primary", use_container_width=True,
+if st.button("Generate Content", type="primary", width="stretch",
              disabled=len(selected_skus) == 0 or not _confirmed):
 
     settings = dict(st.session_state)
@@ -197,7 +197,7 @@ if results:
             matrix_data.append(row_data)
 
         import pandas as pd
-        st.dataframe(pd.DataFrame(matrix_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(matrix_data), width="stretch", hide_index=True)
 
     # Sample preview
     st.subheader("Content Preview")

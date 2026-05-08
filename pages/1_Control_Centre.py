@@ -512,5 +512,5 @@ with st.expander("ScrapingBee Advanced Settings"):
 
 # ── Save confirmation ──
 st.divider()
-if st.button("Save Configuration", type="primary", use_container_width=True):
+if st.button("Save Configuration", type="primary", width="stretch"):
     st.success("Configuration saved to session. Proceed to Data Ingestion.")
