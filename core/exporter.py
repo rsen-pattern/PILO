@@ -22,6 +22,15 @@ from .utils import row_to_dict
 def _map_to_amazon(row: dict, generated: dict, marketplace_key: str = "amazon_au") -> dict:
     bullets = generated.get("bullets", [])
     attrs = generated.get("attributes", {})
+
+    # Part 3: Mapper script - merge Deep Enrichment data
+    deep_data = generated.get("deep_enrichment_data", [])
+    for entry in deep_data:
+        attr = entry.get("attribute")
+        val = entry.get("value")
+        if attr and val and attr not in attrs:
+            attrs[attr] = val
+
     return {
         "item_sku": row.get("sku", ""),
         "external_product_id": row.get("asin", ""),
@@ -35,11 +44,15 @@ def _map_to_amazon(row: dict, generated: dict, marketplace_key: str = "amazon_au
         "product_description": generated.get("description", ""),
         "generic_keywords": generated.get("search_terms", ""),
         "item_type_keyword": generated.get("item_type", ""),
-        "color_name": attrs.get("color_name", row.get("color", "")),
-        "material_type1": attrs.get("material_type1", row.get("material", "")),
-        "size_name": attrs.get("size_name", row.get("size", "")),
+        "color_name": attrs.get("color_name", attrs.get("color", row.get("color", ""))),
+        "material_type1": attrs.get("material_type1", attrs.get("material", row.get("material", ""))),
+        "size_name": attrs.get("size_name", attrs.get("size", row.get("size", ""))),
         "target_audience_keywords": attrs.get("target_audience_keywords", ""),
         "age_range_description": attrs.get("age_range_description", ""),
+        # Map some "hidden" 150+ attributes if found
+        "item_form": attrs.get("item_form", ""),
+        "active_ingredients": attrs.get("active_ingredients", ""),
+        "dietary_claims": attrs.get("dietary_claims", ""),
         **{f"special_feature{i+1}": (generated.get("special_features", []) + [""] * 5)[i]
            for i in range(5)},
     }

@@ -26,6 +26,7 @@ from config.marketplace_configs import (
     get_description_limit, marketplace_supports_bullets,
     marketplace_supports_special_features,
 )
+from core.enrichment_engine import run_deep_enrichment
 
 
 def build_system_prompt(marketplace_key: str) -> str:
@@ -132,6 +133,8 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
 
     # Determine which steps to run (respecting selective generation toggles)
     steps = []
+    if settings.get("deep_enrichment", True):
+        steps.append("deep_enrichment")
     if keyword_enhancement:
         steps.append("keywords")
     if generate_titles:
@@ -154,7 +157,19 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
             progress_callback(step_name, step_idx + 1, total_steps)
 
         try:
-            if step_name == "keywords":
+            if step_name == "deep_enrichment":
+                enrich_str, enrich_list = run_deep_enrichment(
+                    client, model, product, category_name, temperature
+                )
+                result["deep_enrichment_details"] = enrich_str
+                result["deep_enrichment_data"] = enrich_list
+                result["steps_completed"].append("deep_enrichment")
+                # Add to product data for subsequent steps
+                for item in enrich_list:
+                    product[item["attribute"]] = item["value"]
+                product_data_str = "\n".join(f"  {k}: {v}" for k, v in product.items() if v)
+
+            elif step_name == "keywords":
                 keywords_result = _run_keywords(
                     client, model, system_prompt, temperature,
                     product, cfg, product_data_str, predict_keywords,

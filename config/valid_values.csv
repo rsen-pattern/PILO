@@ -1,0 +1,40 @@
+category,attribute,valid_value
+Health & Beauty,hair_type,Fine Hair
+Health & Beauty,hair_type,Thin Hair
+Health & Beauty,hair_type,Oily Hair
+Health & Beauty,hair_type,Greasy Hair
+Health & Beauty,hair_type,Dry Hair
+Supplements,dietary_claims,Vegan
+Supplements,dietary_claims,Keto
+Supplements,dietary_claims,Gluten Free
+Supplements,item_form,Capsule
+Supplements,item_form,Powder
+Pet Supplies,material,Natural Rubber
+Pet Supplies,material,Nylon
+Pet Supplies,material,Polyester
+Pet Supplies,target_species,Dog
+Pet Supplies,target_species,Cat
+Pet Supplies,breed_size,Small Breeds
+Pet Supplies,breed_size,Medium Breeds
+Pet Supplies,breed_size,Large Breeds
+Pet Supplies,age_range_description,Puppy
+Pet Supplies,age_range_description,Adult
+Pet Supplies,age_range_description,Senior
+Health & Beauty,item_form,Liquid
+Health & Beauty,item_form,Gel
+Health & Beauty,item_form,Cream
+Health & Beauty,skin_type,Sensitive
+Health & Beauty,skin_type,Dry
+Health & Beauty,skin_type,Oily
+Supplements,active_ingredients,Vitamin C
+Supplements,active_ingredients,Magnesium
+Supplements,active_ingredients,Omega-3
+Baby,material_type,Cotton
+Baby,material_type,BPA Free Plastic
+Baby,age_range_description,newborn
+Baby,age_range_description,infant
+Baby,age_range_description,toddler
+Electronics,connectivity,Bluetooth 5.3
+Electronics,connectivity,Wi-Fi
+Electronics,power_source,Battery Powered
+Electronics,power_source,Corded Electric

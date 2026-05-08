@@ -119,6 +119,22 @@ if research_results:
 
 st.divider()
 
+# ── Deep Attribute Mapping (Part 2) ──
+st.divider()
+st.header("Part 2: Deep Attribute Mapping")
+st.caption("AI-powered attribute extraction from merged source data (Audit Trail).")
+
+deep_enrich_enabled = st.checkbox(
+    "Enable Deep Attribute Mapping",
+    value=st.session_state.get("deep_enrichment", True),
+    help="Runs the Deep Enrichment Engine (Part 2) to extract hidden attributes and map to valid values.",
+    key="deep_enrich_chk"
+)
+st.session_state["deep_enrichment"] = deep_enrich_enabled
+
+if deep_enrich_enabled:
+    st.info("Deep enrichment is configured to run during Content Generation. You will see the 'Audit Trail' justification in the QA Review page.")
+
 # ── Enriched data table with source colour coding ──
 st.subheader("Enriched Dataset")
 

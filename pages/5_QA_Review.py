@@ -303,6 +303,13 @@ for tab_idx, tab in enumerate(tabs):
                 height=60,
             )
 
+        # ── Product Enrichment Audit Trail (Part 2) ──
+        if gen.get("deep_enrichment_details"):
+            st.divider()
+            st.markdown("### Product Enrichment Audit Trail")
+            st.caption("Detailed justification for extracted attributes and mapped valid values.")
+            st.info(gen["deep_enrichment_details"])
+
         # ── QA Decision ──
         st.divider()
         decision_col1, decision_col2 = st.columns([2, 1])
