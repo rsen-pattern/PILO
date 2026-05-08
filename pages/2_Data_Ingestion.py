@@ -291,9 +291,13 @@ if "Web Scraping" in research_method or research_method == "Both":
                         region_map = {"AU": "amazon.com.au", "US": "amazon.com", "UK": "amazon.co.uk", "DE": "amazon.de"}
                         regions = [region_map.get(region, "amazon.com")]
                         progress = st.progress(0, text="Scraping...")
+                        concurrency = st.session_state.get("sb_concurrency", 1)
+                        scrape_delay = st.session_state.get("sb_scrape_delay", 1.0)
                         scraped_df = batch_scrape_asins(
                             api_key, asins, regions,
                             progress_callback=lambda p: progress.progress(p),
+                            concurrency=concurrency,
+                            scrape_delay=scrape_delay
                         )
                         st.session_state["scraped_df"] = scraped_df
                         st.success(f"Scraped {len(scraped_df)} products.")

@@ -173,6 +173,34 @@ if deep_enrich_enabled:
     deep_results = st.session_state.get("deep_enrichment_results", {})
     if deep_results:
         st.info(f"✅ Deep Attribute Mapping active. {len(deep_results)} items enriched with Audit Trail.")
+
+        # Category Intelligence Toggle
+        cat_intel_toggle = st.toggle("Show Category-Specific Audit Trail", value=True, key="cat_intel_toggle")
+
+        if cat_intel_toggle:
+            st.subheader("Field Name | Original Value | PILO Enriched Value | Source")
+
+            # Select a SKU to show audit trail for
+            sku_to_audit = st.selectbox("Select SKU for Audit Trail", list(deep_results.keys()), key="audit_sku_sel")
+            if sku_to_audit:
+                res = deep_results[sku_to_audit]
+                audit_rows = []
+                # Find original row
+                orig_row = enriched_df[enriched_df["sku"] == sku_to_audit].iloc[0] if "sku" in enriched_df.columns else {}
+
+                for entry in res["data"]:
+                    attr = entry["attribute"]
+                    val = entry["value"]
+                    src = entry["source"]
+                    orig_val = orig_row.get(attr, "")
+                    audit_rows.append({
+                        "Field Name": attr,
+                        "Original Value": orig_val,
+                        "PILO Enriched Value": val,
+                        "Source": src
+                    })
+                st.table(pd.DataFrame(audit_rows))
+
         # Inject into enriched_df for display
         for sku, res in deep_results.items():
             if "sku" in enriched_df.columns:

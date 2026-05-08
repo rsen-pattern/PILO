@@ -1,6 +1,7 @@
 """Shared utility functions for PILO."""
 
 import json
+import os
 import re
 
 import pandas as pd
@@ -77,3 +78,15 @@ def row_to_dict(row):
         else:
             d[k] = v
     return d
+
+
+def load_category_config():
+    """Load category configuration from JSON file."""
+    config_path = os.path.join("config", "category_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}

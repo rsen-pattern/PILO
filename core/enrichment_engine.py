@@ -1,35 +1,43 @@
 """
-PILO Deep Enrichment Engine — Part 2.
-Handles deep attribute mapping and justification.
+PILO Deep Enrichment Engine — Category-Aware V2.
+Handles deep attribute mapping, category constraints, and detailed justification.
 """
 
 import os
 import pandas as pd
 import json
 
-MASTER_ENRICHMENT_PROMPT = """
+MASTER_CATEGORY_INTELLIGENCE_PROMPT = """
 Role:
-You are a Senior Amazon Data Architect and CDQ (Composite Data Quality) specialist. Your goal is to extract every possible product attribute from raw source data and map them to Amazon’s valid values schema.
+You are the PILO Category Intelligence Engine. Your task is to process raw product data and map it to the specific Amazon AU Master File requirements for the identified category.
 
-Task:
-Analyze the provided Product Summary and the Valid Values Reference. Extract and structure all available metadata to populate the Product Enrichment tab.
+Task Phase 1: Category Identification & Constraint Loading
+- Identify Product Type (PT): {category_name}
+- Knowledge Module: {knowledge_module}
 
-Inputs:
-Product Summary: {product_summary}
-Valid Values Reference: {valid_values_ref}
+Task Phase 2: Attribute Extraction (The 150+ Fields)
+Scan the Product Summary to find values for these priority fields:
+1. Discovery Attributes: Map raw text to valid values for special_features, material_type, and target_audience.
+2. Compliance Attributes: Ensure ingredients and safety_warning are present if applicable.
+3. Variation Logic: Ensure color_name and size_name match the valid values reference.
 
-Instructions & Constraints:
-1. Strict Mapping: Only use values that exist in the "Valid Values" list. If a specific value isn't found, use the closest logical match or leave it blank—never hallucinate.
-2. Supplement Discovery: Look specifically for the "hidden" 150+ attributes (e.g., item_form, active_ingredients, target_gender, is_expiration_dated_product, material_features).
-3. Justification: For every attribute filled, include a brief "Source Note" (e.g., "Extracted from scraped brand website" or "Mapped from Ingredients list").
-4. Formatting: Output the data as a structured list with justification.
+Valid Values Reference:
+{valid_values_ref}
+
+Product Summary:
+{product_summary}
+
+Instructions:
+- Use strict mapping. Never hallucinate.
+- For every attribute, provide a [Mapped Valid Value] and a [Justification from Source Data].
+- Priority: Ensure 100% fill rate for all 'Discovery-Critical' fields.
 
 Output Format:
 Return JSON with a key "enrichment_details" containing a list of objects:
 {{
-  "attribute": "Attribute Name",
+  "attribute": "Amazon Field Name",
   "value": "Mapped Valid Value",
-  "source": "Context/Justification"
+  "source": "Justification (e.g., Scraped site, PDF Page 4)"
 }}
 """
 
@@ -41,11 +49,8 @@ def get_valid_values(category):
 
     try:
         df = pd.read_csv(csv_path)
-        # Map app category names to valid values categories if needed
-        # e.g. "Pet Supplies" -> "Pet Supplies"
         filtered_df = df[df["category"] == category]
         if filtered_df.empty:
-            # Fallback or broad match
             return ""
 
         values_str = ""
@@ -56,20 +61,27 @@ def get_valid_values(category):
     except Exception:
         return ""
 
-def run_deep_enrichment(client, model, product_data, category, temperature=0.1):
-    """Run the deep enrichment LLM call."""
-    valid_values_ref = get_valid_values(category)
+from core.utils import load_category_config
 
-    # Construct Product Summary from available data layers
+def run_deep_enrichment(client, model, product_data, category, temperature=0.1):
+    """Run the category-aware deep enrichment LLM call."""
+    valid_values_ref = get_valid_values(category)
+    cat_config = load_category_config().get(category, {})
+
+    knowledge_module = f"Guidelines: {cat_config.get('guidelines', '')}\nCompliance: {cat_config.get('compliance_guardrails', '')}"
+
+    # Construct Product Summary
     summary_parts = []
     for k, v in product_data.items():
         if v and str(v).strip() not in ("", "nan", "None"):
             summary_parts.append(f"{k}: {v}")
     product_summary = "\n".join(summary_parts)
 
-    prompt = MASTER_ENRICHMENT_PROMPT.format(
-        product_summary=product_summary,
-        valid_values_ref=valid_values_ref or "None provided. Use logical mapping for standard fields."
+    prompt = MASTER_CATEGORY_INTELLIGENCE_PROMPT.format(
+        category_name=category,
+        knowledge_module=knowledge_module,
+        valid_values_ref=valid_values_ref or "Use logical mapping for standard fields.",
+        product_summary=product_summary
     )
 
     try:
@@ -77,7 +89,7 @@ def run_deep_enrichment(client, model, product_data, category, temperature=0.1):
             model=model,
             temperature=temperature,
             messages=[
-                {"role": "system", "content": "You are a Senior Amazon Data Architect. Return valid JSON only."},
+                {"role": "system", "content": "You are the PILO Category Intelligence Engine. Return valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             max_tokens=4096,
@@ -85,7 +97,6 @@ def run_deep_enrichment(client, model, product_data, category, temperature=0.1):
         raw = response.choices[0].message.content
         result = _parse_json(raw)
 
-        # Format the output for the Product Enrichment Details column
         details = []
         for entry in result.get("enrichment_details", []):
             attr = entry.get("attribute")
@@ -96,7 +107,7 @@ def run_deep_enrichment(client, model, product_data, category, temperature=0.1):
 
         return "\n".join(details), result.get("enrichment_details", [])
     except Exception as e:
-        return f"Error in deep enrichment: {str(e)}", []
+        return f"Error in category intelligence mapping: {str(e)}", []
 
 def _parse_json(text):
     text = text.strip()

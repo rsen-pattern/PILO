@@ -4,9 +4,10 @@ import time
 
 import pandas as pd
 import requests
-import streamlit as st
+import logging
 from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
 
 REGION_CONFIGS = {
     "amazon.com": {"domain": "https://www.amazon.com/dp/", "country_code": "us"},
@@ -42,7 +43,7 @@ def scrape_amazon_product(api_key, asin, region="amazon.com"):
         response.raise_for_status()
         return parse_amazon_html(response.text, asin, region)
     except Exception as e:
-        st.warning(f"Failed to scrape {asin} from {region}: {e}")
+        logger.warning(f"Failed to scrape {asin} from {region}: {e}")
         return None
 
 
@@ -119,11 +120,11 @@ def scrape_brand_url(api_key, url):
             tag.decompose()
         return soup.get_text(separator="\n", strip=True)
     except Exception as e:
-        st.warning(f"Failed to scrape {url}: {e}")
+        logger.warning(f"Failed to scrape {url}: {e}")
         return None
 
 
-def batch_scrape_asins(api_key, asins, regions, progress_callback=None):
+def batch_scrape_asins(api_key, asins, regions, progress_callback=None, concurrency=1, scrape_delay=1.0):
     """Scrape multiple ASINs across multiple regions in parallel.
 
     Returns a DataFrame of scraped data.
@@ -133,11 +134,6 @@ def batch_scrape_asins(api_key, asins, regions, progress_callback=None):
     results = []
     total = len(asins) * len(regions)
     done = 0
-
-    # Determine concurrency from session state if available, else default to 1
-    # We'll pass it in settings or just use a default here for the core module
-    concurrency = st.session_state.get("sb_concurrency", 1)
-    scrape_delay = st.session_state.get("sb_scrape_delay", 1.0)
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         futures = []

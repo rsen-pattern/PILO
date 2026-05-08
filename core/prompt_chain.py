@@ -27,6 +27,7 @@ from config.marketplace_configs import (
     marketplace_supports_special_features,
 )
 from core.enrichment_engine import run_deep_enrichment
+from core.utils import load_category_config
 
 
 def build_system_prompt(marketplace_key: str) -> str:
@@ -41,16 +42,6 @@ def build_system_prompt(marketplace_key: str) -> str:
     )
 
 
-def _load_category_config():
-    """Load category configuration from JSON file."""
-    config_path = os.path.join("config", "category_config.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
 
 
 def run_chain(client, model: str, product: dict, marketplace_key: str,
@@ -59,6 +50,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
               scraped_data: dict = None,
               document_context: str = None,
               crossretail_data: dict = None,
+              deep_enrichment_results: dict = None,
               progress_callback=None) -> dict:
     """Run the full prompt chain for one SKU × one marketplace.
 
@@ -106,7 +98,7 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
 
     # Load category context
     category_name = settings.get("category", "Other")
-    cat_config = _load_category_config().get(category_name, {})
+    cat_config = load_category_config().get(category_name, {})
     category_context = cat_config.get("guidelines", "")
 
     # Discovery keywords and weights for category
@@ -151,11 +143,9 @@ def run_chain(client, model: str, product: dict, marketplace_key: str,
     keywords_context = ""
 
     # Pull pre-computed deep enrichment data if available
-    import streamlit as st
-    deep_results = st.session_state.get("deep_enrichment_results", {})
     sku = product.get("sku")
-    if sku and sku in deep_results:
-        res = deep_results[sku]
+    if deep_enrichment_results and sku and sku in deep_enrichment_results:
+        res = deep_enrichment_results[sku]
         result["deep_enrichment_details"] = res["details"]
         result["deep_enrichment_data"] = res["data"]
         # Inject into product context
@@ -346,6 +336,12 @@ def _run_keywords(client, model, system_prompt, temperature,
 def _run_title(client, model, system_prompt, temperature,
                product, cfg, product_data_str, keywords_context, settings,
                supplementary_context=""):
+
+    # Category-Specific Title Architect logic
+    cat_name = settings.get("category", "Other")
+    cat_cfg = load_category_config().get(cat_name, {})
+    title_structure = cat_cfg.get("synthesis_rules", {}).get("title", cfg["title"]["structure"])
+
     prompt = TITLE_PROMPT.format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),
@@ -353,7 +349,7 @@ def _run_title(client, model, system_prompt, temperature,
         category=product.get("product_type", ""),
         product_data=product_data_str,
         keywords_context=keywords_context,
-        title_structure=cfg["title"]["structure"],
+        title_structure=title_structure,
         title_char_limit=cfg["title"]["char_limit"],
         title_rules=cfg["title"]["rules"],
         brand_tone=settings.get("brand_tone", "Professional"),
@@ -369,9 +365,18 @@ def _run_title(client, model, system_prompt, temperature,
 def _run_bullets(client, model, system_prompt, temperature,
                  product, cfg, product_data_str, keywords_context,
                  generated_title, settings, supplementary_context=""):
+
+    # Category-Specific Bullet Point Synthesizer logic
+    cat_name = settings.get("category", "Other")
+    cat_cfg = load_category_config().get(cat_name, {})
+    qa_framework = cat_cfg.get("synthesis_rules", {}).get("bullets", "")
+
     bullet_guides = "\n".join(
         f"  Bullet {n}: {guide}" for n, guide in cfg["bullets"]["guides"].items()
     )
+    if qa_framework:
+        bullet_guides += f"\n\nCATEGORY SYNTHESIS RULES:\n{qa_framework}"
+
     prompt = BULLETS_PROMPT.format(
         marketplace_name=cfg["name"],
         brand_name=product.get("brand", ""),

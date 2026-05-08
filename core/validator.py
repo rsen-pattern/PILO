@@ -3,18 +3,7 @@ Amazon Composite Data Quality (CDQ) Validator.
 Checks generated content against category-specific requirements.
 """
 
-import json
-import os
-
-def load_category_config():
-    config_path = os.path.join("config", "category_config.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+from core.utils import load_category_config
 
 def validate_sku_content(sku_result, category, settings):
     """Validate generated content for a SKU.

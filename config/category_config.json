@@ -1,40 +1,64 @@
 {
   "Supplements": {
     "prioritize": ["Ingredients", "Certifications", "Diet Type", "Serving Size"],
-    "discovery_critical": ["dietary_claims", "serving_size", "item_form"],
-    "rufus_priority": ["Ingredients", "Certifications"],
+    "discovery_critical": ["dietary_claims", "serving_size", "item_form", "active_ingredients"],
+    "rufus_priority": ["diet_type", "active_ingredients", "serving_size", "dietary_claims"],
     "importance_weights": {
       "dietary_claims": 1.0,
-      "serving_size": 0.5
+      "serving_size": 0.5,
+      "active_ingredients": 1.0,
+      "diet_type": 1.0
     },
-    "guidelines": "If Category = Supplements, prioritize 'Ingredients' and 'Certifications'. Include dosage, form (capsule, powder), and primary health benefit. Ensure all health claims are grounded in provided data. Rufus uses ingredients as a primary filter."
+    "compliance_guardrails": "TGA Compliance: No 'cures' or 'treatments'. Focus on 'supports' or 'maintains'. Ensure all health claims are grounded in provided data.",
+    "synthesis_rules": {
+      "title": "[Brand] + [Product Type] + [Total Count] + [Dietary Claim]",
+      "bullets": "Use Question-Answer framework. Bullet 1: Immediate Benefit (Is this for my [need]?). Bullet 2: The Proof (Cite specific ingredients)."
+    },
+    "guidelines": "If Category = Supplements, prioritize 'Ingredients' and 'Certifications'. Rufus uses ingredients as a primary filter. Focus on Nutrient Density (L3 Ingestion) and Diet Types (Vegan/GF)."
   },
-  "Pet Supplies": {
-    "prioritize": ["Material", "Safety Certifications"],
-    "discovery_critical": ["material", "size_suitability", "breed_size"],
-    "rufus_priority": ["Material", "Safety Certifications"],
-    "guidelines": "Include material, size/weight suitability, breed size, safety certifications, and cleaning instructions. Lead with the benefit to the pet, not the feature. Mention target species and durability."
+  "Health & Beauty": {
+    "prioritize": ["Ingredients", "Skin/Hair Type", "Certifications"],
+    "discovery_critical": ["hair_type", "scent_name", "product_benefit", "suitable_hair_color", "ingredients"],
+    "rufus_priority": ["hair_type", "scent_name", "product_benefit", "suitable_hair_color"],
+    "compliance_guardrails": "Texture focus: Rufus looks for 'frizz-control' vs 'volumising' based on hair_type. Ensure OCR-ready text for images (certification logos).",
+    "synthesis_rules": {
+      "title": "[Brand] + [Product Type] + [Hair Type/Skin Type] + [Benefit]",
+      "bullets": "Use Question-Answer framework. Bullet 1: Immediate Benefit (Is this for my hair type?). Bullet 2: The Proof (Cite specific ingredients from L2/L3)."
+    },
+    "guidelines": "Prioritize Application/Directions and compatibility. Rufus uses ingredients as a primary filter for 'Sensitive Skin' queries."
   },
   "Electronics": {
     "prioritize": ["Specifications", "Compatibility", "Connectivity", "Power Source"],
-    "discovery_critical": ["connectivity", "power_source", "compatibility"],
-    "rufus_priority": ["Specifications", "Compatibility"],
+    "discovery_critical": ["power_source_type", "voltage", "material_type", "included_components", "wattage"],
+    "rufus_priority": ["power_source_type", "voltage", "material_type", "included_components"],
     "importance_weights": {
-      "connectivity": 1.0,
-      "power_source": 0.5
+      "power_source_type": 1.0,
+      "voltage": 1.0,
+      "material_type": 0.5,
+      "included_components": 0.5
     },
-    "guidelines": "Include key specifications, compatibility, connectivity, battery life, and dimensions. Lead with the primary use case. Mention warranty and included accessories."
+    "compliance_guardrails": "Spec Accuracy: Exactness in wattage and brightness is critical to reduce returns.",
+    "synthesis_rules": {
+      "title": "[Brand] + [Product Type] + [Primary Power Source] + [Material]",
+      "bullets": "Use Question-Answer framework. Bullet 1: Compatibility (Will this work with my [device]?). Bullet 2: Technical Proof (Cite specific specs)."
+    },
+    "guidelines": "Include key specifications, compatibility, connectivity, battery life, and dimensions. Prioritize technical specifications and material durability."
+  },
+  "Pet Supplies": {
+    "prioritize": ["Material", "Safety Certifications", "Target Species", "Flavor/Scent"],
+    "discovery_critical": ["target_species", "material_type", "flavor_name", "style_name"],
+    "rufus_priority": ["target_species", "material_type", "flavor_name", "style_name"],
+    "compliance_guardrails": "Safety focus: material_type (e.g., Non-toxic rubber) is a primary conversion driver.",
+    "synthesis_rules": {
+      "title": "[Brand] + [Product Type] + [Target Species] + [Material/Flavor]",
+      "bullets": "Use Question-Answer framework. Bullet 1: Immediate Benefit (Is this safe for my dog?). Bullet 2: Material/Flavor Proof (Cite specific materials from L2/L3)."
+    },
+    "guidelines": "Prioritize Target Species and Flavor/Scent data. Mention target species and durability."
   },
   "Clothing & Accessories": {
     "prioritize": ["Material", "Size Range"],
     "discovery_critical": ["material_composition", "size_range", "fit_type"],
     "guidelines": "Include material composition, size range, care instructions, and fit type. Lead with style and occasion. Mention seasonal suitability."
-  },
-  "Health & Beauty": {
-    "prioritize": ["Ingredients", "Skin/Hair Type", "Certifications"],
-    "discovery_critical": ["ingredients", "skin_type", "is_cruelty_free"],
-    "rufus_priority": ["Ingredients", "Skin Type", "Certifications"],
-    "guidelines": "Prioritize Ingredients, Skin Type, and Certifications (Cruelty-Free, Organic). Rufus uses ingredients as a primary filter for 'Sensitive Skin' queries. Ensure OCR-ready text for images."
   },
   "Home & Kitchen": {
     "prioritize": ["Dimensions", "Material", "Finish Type", "Item Weight"],

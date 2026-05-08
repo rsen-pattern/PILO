@@ -5,8 +5,7 @@ Maintains backward-compatible helpers for scraping/doc context.
 
 import json
 import time
-
-import streamlit as st
+import logging
 
 from .utils import get_missing_attributes, parse_json_response, row_to_dict
 from .cost_tracker import CostTracker
@@ -42,7 +41,10 @@ def get_doc_context_for_sku(sku, ingested_docs):
     return "\n\n".join(relevant_texts) if relevant_texts else None
 
 
-def run_generation(enriched_df, settings, selected_skus=None, generate_options=None):
+def run_generation(enriched_df, settings, selected_skus=None, generate_options=None,
+                   research_results=None, predict_keywords=None, ingested_docs=None,
+                   scraped_df=None, crossretail_df=None, deep_enrichment_results=None,
+                   progress_callback=None, status_callback=None):
     """Run multi-marketplace content generation via the prompt chain.
 
     Returns (results_dict, errors_list, cost_tracker).
@@ -51,7 +53,6 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
     try:
         client, model_id = _create_client(settings)
     except ValueError as e:
-        st.error(str(e))
         return {}, [str(e)], CostTracker()
 
     marketplaces = settings.get("target_marketplace", ["amazon_au"])
@@ -65,11 +66,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         key = MARKETPLACE_KEY_BY_NAME.get(mp, mp)
         marketplace_keys.append(key)
 
-    research_data = st.session_state.get("research_results", {})
-    predict_keywords = st.session_state.get("predict_keywords", {})
-    ingested_docs = st.session_state.get("ingested_docs", [])
-    scraped_df = st.session_state.get("scraped_df")
-    crossretail_df = st.session_state.get("crossretail_df")
+    research_data = research_results or {}
+    predict_keywords_data = predict_keywords or {}
+    ingested_docs = ingested_docs or []
     cost_tracker = CostTracker()
 
     if selected_skus is None:
@@ -80,8 +79,8 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
     total = len(selected_skus) * len(marketplace_keys)
     current = 0
 
-    progress_bar = st.progress(0, text=f"Starting generation via Bifrost ({model_id})...")
-    status_container = st.container()
+    if progress_callback:
+        progress_callback(0, f"Starting generation via Bifrost ({model_id})...")
 
     for sku in selected_skus:
         if "sku" in enriched_df.columns:
@@ -97,7 +96,7 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
         row = enriched_df[row_mask].iloc[0]
         product = row_to_dict(row)
         sku_research = research_data.get(sku, None)
-        sku_predict = predict_keywords.get(sku, [])
+        sku_predict = predict_keywords_data.get(sku, [])
 
         # Gather scraped data for this SKU
         sku_scraped = None
@@ -118,16 +117,18 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
 
         for mp_key in marketplace_keys:
             current += 1
-            progress_bar.progress(
-                min(current / total, 0.99),
-                text=f"Generating {sku} for {mp_key} ({current}/{total})",
-            )
+            if progress_callback:
+                progress_callback(
+                    min(current / total, 0.99),
+                    f"Generating {sku} for {mp_key} ({current}/{total})",
+                )
 
             def step_callback(step_name, step_num, total_steps):
-                progress_bar.progress(
-                    min(current / total, 0.99),
-                    text=f"{sku} / {mp_key}: Step {step_num}/{total_steps} — {step_name}",
-                )
+                if progress_callback:
+                    progress_callback(
+                        min(current / total, 0.99),
+                        f"{sku} / {mp_key}: Step {step_num}/{total_steps} — {step_name}",
+                    )
 
             try:
                 chain_result = run_chain(
@@ -141,14 +142,15 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
                     scraped_data=sku_scraped,
                     document_context=sku_doc_context,
                     crossretail_data=sku_crossretail,
+                    deep_enrichment_results=deep_enrichment_results,
                     progress_callback=step_callback,
                 )
                 results[(sku, mp_key)] = chain_result
 
-                with status_container:
+                if status_callback:
                     title_preview = chain_result.get("title", "")[:60]
                     steps_done = len(chain_result.get("steps_completed", []))
-                    st.caption(f"**{sku}** [{mp_key}]: {title_preview}... ({steps_done} steps)")
+                    status_callback(f"**{sku}** [{mp_key}]: {title_preview}... ({steps_done} steps)")
 
                 if chain_result.get("errors"):
                     for err in chain_result["errors"]:
@@ -156,8 +158,9 @@ def run_generation(enriched_df, settings, selected_skus=None, generate_options=N
 
             except Exception as e:
                 errors.append(f"{sku}/{mp_key}: {str(e)}")
-                with status_container:
-                    st.caption(f"**{sku}** [{mp_key}]: Error - {str(e)[:80]}")
+                if status_callback:
+                    status_callback(f"**{sku}** [{mp_key}]: Error - {str(e)[:80]}")
 
-    progress_bar.progress(1.0, text="Generation complete!")
+    if progress_callback:
+        progress_callback(1.0, "Generation complete!")
     return results, errors, cost_tracker

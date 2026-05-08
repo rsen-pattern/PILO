@@ -99,10 +99,29 @@ if st.button("Generate Content", type="primary", use_container_width=True,
              disabled=len(selected_skus) == 0):
 
     settings = dict(st.session_state)
+
+    progress_bar = st.progress(0, text="Starting generation...")
+    status_container = st.container()
+
+    def progress_cb(p, text):
+        progress_bar.progress(p, text=text)
+
+    def status_cb(text):
+        with status_container:
+            st.caption(text)
+
     results, errors, cost_tracker = run_generation(
         enriched_df=enriched_df,
         settings=settings,
         selected_skus=selected_skus,
+        research_results=st.session_state.get("research_results"),
+        predict_keywords=st.session_state.get("predict_keywords"),
+        ingested_docs=st.session_state.get("ingested_docs"),
+        scraped_df=st.session_state.get("scraped_df"),
+        crossretail_df=st.session_state.get("crossretail_df"),
+        deep_enrichment_results=st.session_state.get("deep_enrichment_results"),
+        progress_callback=progress_cb,
+        status_callback=status_cb
     )
 
     st.session_state["generated_results"] = results
