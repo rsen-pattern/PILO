@@ -33,7 +33,9 @@ def detect_file_format(df_raw: pd.DataFrame, filename: str = "") -> str:
     if df_raw.shape[0] < 1:
         return "standard"
 
-    first_row = df_raw.iloc[0].astype(str).str.lower().tolist()
+    first_row = [
+        "" if pd.isna(v) else str(v).lower() for v in df_raw.iloc[0].tolist()
+    ]
     cols_lower = [str(c).lower() for c in df_raw.columns]
     all_text = " ".join(first_row + cols_lower)
 
@@ -108,12 +110,14 @@ def _parse_amazon_settings_row(raw: pd.DataFrame) -> dict:
 
 
 def _read_xlsx_sheet(file_bytes: bytes, sheet_name: str = None) -> pd.DataFrame:
-    """Read an xlsx file, using the given sheet or auto-detecting 'Template'.
+    """Read an xlsx/xlsm file, using the given sheet or auto-detecting 'Template'.
 
     Uses dtype=str to avoid float coercion of header/metadata rows.
+    openpyxl handles both .xlsx and .xlsm (macro-enabled) workbooks; macros
+    are ignored and only the cell data is read.
     """
     try:
-        xls = pd.ExcelFile(io.BytesIO(file_bytes))
+        xls = pd.ExcelFile(io.BytesIO(file_bytes), engine="openpyxl")
         target = None
         if sheet_name and sheet_name in xls.sheet_names:
             target = sheet_name
@@ -122,7 +126,9 @@ def _read_xlsx_sheet(file_bytes: bytes, sheet_name: str = None) -> pd.DataFrame:
         return pd.read_excel(xls, sheet_name=target, header=None, dtype=str)
     except Exception:
         try:
-            return pd.read_excel(io.BytesIO(file_bytes), header=None, dtype=str)
+            return pd.read_excel(
+                io.BytesIO(file_bytes), header=None, dtype=str, engine="openpyxl"
+            )
         except Exception:
             return pd.read_excel(io.BytesIO(file_bytes), header=None)
 
@@ -216,7 +222,7 @@ def export_amazon_flat_file(df: pd.DataFrame, metadata_row: list = None,
 def parse_walmart_spec(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
         return _read_csv_safe(file_bytes)
-    return pd.read_excel(io.BytesIO(file_bytes))
+    return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
 
 def export_walmart_spec(df: pd.DataFrame) -> bytes:
@@ -233,7 +239,7 @@ def export_walmart_spec(df: pd.DataFrame) -> bytes:
 def parse_gs1_npc(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
         return _read_csv_safe(file_bytes)
-    return pd.read_excel(io.BytesIO(file_bytes))
+    return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
 
 def export_gs1_npc(df: pd.DataFrame) -> bytes:
@@ -264,7 +270,7 @@ def export_ebay_csv(df: pd.DataFrame) -> bytes:
 def parse_google_merchant(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if filename.endswith(".csv"):
         return _read_csv_safe(file_bytes)
-    return pd.read_excel(io.BytesIO(file_bytes))
+    return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
 
 def export_google_merchant(df: pd.DataFrame) -> bytes:

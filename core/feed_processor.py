@@ -61,7 +61,7 @@ def load_feed(uploaded_file, header_row=0, sheet_name=None):
     uploaded_file.seek(0)
 
     # Read raw for format detection — from specified sheet if given
-    if name.endswith((".xlsx", ".xls")):
+    if name.endswith((".xlsx", ".xls", ".xlsm")):
         try:
             xls = pd.ExcelFile(io.BytesIO(file_bytes))
             target_sheet = None
@@ -87,7 +87,9 @@ def load_feed(uploaded_file, header_row=0, sheet_name=None):
     elif name.endswith(".csv"):
         raw = _read_csv_safe(file_bytes, nrows=5, header=None)
     else:
-        raise ValueError(f"Unsupported file type: {name}")
+        raise ValueError(
+            f"Unsupported file type: {name}. Supported: .csv, .xlsx, .xls, .xlsm"
+        )
 
     detected_format = detect_file_format(raw, name)
 

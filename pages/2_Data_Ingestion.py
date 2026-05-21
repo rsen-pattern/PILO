@@ -16,7 +16,7 @@ pattern_page_header("Data Ingestion", "Upload product data from multiple sources
 # LAYER 1 — Primary Product Feed
 # ═══════════════════════════════════════════════════════════════════════════
 st.header("Layer 1: Primary Product Feed")
-st.caption("Upload your product feed (.csv, .xlsx, .xls) or load demo data.")
+st.caption("Upload your product feed (.csv, .xlsx, .xls, .xlsm) or load demo data.")
 
 st.caption("New here? Start with sample data to explore the full workflow.")
 demo_col1, demo_col2, demo_col3 = st.columns([1, 2, 1])
@@ -41,20 +41,22 @@ with demo_col2:
 st.markdown("---")
 st.caption("Or upload your own feed:")
 uploaded = st.file_uploader(
-    "Upload Product Feed", type=["csv", "xlsx", "xls"],
+    "Upload Product Feed", type=["csv", "xlsx", "xls", "xlsm"],
     key="feed_upload",
+    help="Macro-enabled .xlsm files are supported — VBA macros are ignored and "
+         "only the cell data is read.",
 )
 
 if uploaded:
     fname = uploaded.name.lower()
-    is_excel = fname.endswith((".xlsx", ".xls"))
+    is_excel = fname.endswith((".xlsx", ".xls", ".xlsm"))
 
     # ── Sheet selection for Excel files ──
     sheet_names = []
     selected_sheet = None
     if is_excel:
         try:
-            xls = pd.ExcelFile(uploaded)
+            xls = pd.ExcelFile(uploaded, engine="openpyxl")
             sheet_names = xls.sheet_names
             uploaded.seek(0)
         except Exception:
@@ -82,9 +84,9 @@ if uploaded:
         raw_preview = None
         if is_excel:
             if selected_sheet:
-                raw_preview = pd.read_excel(uploaded, sheet_name=selected_sheet, nrows=10, header=None, dtype=str)
+                raw_preview = pd.read_excel(uploaded, sheet_name=selected_sheet, nrows=10, header=None, dtype=str, engine="openpyxl")
             else:
-                raw_preview = pd.read_excel(uploaded, nrows=10, header=None, dtype=str)
+                raw_preview = pd.read_excel(uploaded, nrows=10, header=None, dtype=str, engine="openpyxl")
         else:
             raw_preview = pd.read_csv(uploaded, nrows=10, header=None, dtype=str)
         uploaded.seek(0)
@@ -226,10 +228,10 @@ tab_cr, tab_predict, tab_shelf = st.tabs(["Cross-Retail Upload", "Predict Keywor
 
 with tab_cr:
     st.caption("Upload SKUVantage, SKULibrary, or similar cross-retail data.")
-    cr_file = st.file_uploader("Upload Cross-Retail Data", type=["csv", "xlsx"], key="cr_upload")
+    cr_file = st.file_uploader("Upload Cross-Retail Data", type=["csv", "xlsx", "xlsm"], key="cr_upload")
     if cr_file:
         try:
-            cr_df = pd.read_csv(cr_file) if cr_file.name.endswith(".csv") else pd.read_excel(cr_file)
+            cr_df = pd.read_csv(cr_file) if cr_file.name.endswith(".csv") else pd.read_excel(cr_file, engine="openpyxl")
             st.session_state["crossretail_df"] = cr_df
             st.success(f"Loaded {len(cr_df)} cross-retail rows.")
             st.dataframe(cr_df.head(5), width="stretch")
@@ -239,11 +241,11 @@ with tab_cr:
 with tab_predict:
     if st.session_state.get("predict_integration"):
         st.caption("Upload keyword export from Pattern's Predict tool.")
-        pred_file = st.file_uploader("Upload Predict Export", type=["csv", "xlsx"], key="pred_upload")
+        pred_file = st.file_uploader("Upload Predict Export", type=["csv", "xlsx", "xlsm"], key="pred_upload")
         if pred_file:
             from config.pattern_tool_schemas import parse_predict_export
             try:
-                pred_df = pd.read_csv(pred_file) if pred_file.name.endswith(".csv") else pd.read_excel(pred_file)
+                pred_df = pd.read_csv(pred_file) if pred_file.name.endswith(".csv") else pd.read_excel(pred_file, engine="openpyxl")
                 keywords = parse_predict_export(pred_df)
                 st.session_state["predict_keywords_raw"] = keywords
                 st.success(f"Imported {len(keywords)} keywords from Predict.")
@@ -255,11 +257,11 @@ with tab_predict:
 with tab_shelf:
     if st.session_state.get("shelf_integration"):
         st.caption("Upload compliance export from Pattern's Shelf tool.")
-        shelf_file = st.file_uploader("Upload Shelf Export", type=["csv", "xlsx"], key="shelf_upload")
+        shelf_file = st.file_uploader("Upload Shelf Export", type=["csv", "xlsx", "xlsm"], key="shelf_upload")
         if shelf_file:
             from config.pattern_tool_schemas import parse_shelf_export
             try:
-                shelf_df = pd.read_csv(shelf_file) if shelf_file.name.endswith(".csv") else pd.read_excel(shelf_file)
+                shelf_df = pd.read_csv(shelf_file) if shelf_file.name.endswith(".csv") else pd.read_excel(shelf_file, engine="openpyxl")
                 scores = parse_shelf_export(shelf_df)
                 st.session_state["shelf_scores"] = scores
                 st.success(f"Imported Shelf scores for {len(scores)} products.")
