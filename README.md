@@ -43,6 +43,10 @@ pet products with pre-computed AI research and ~25% attribute completeness.
 
 ## Known Behaviours
 
+- **Supported feed formats**: `.csv`, `.xlsx`, `.xls`, and `.xlsm`
+  (macro-enabled). For `.xlsm` files, VBA macros are ignored and only the
+  cell data is read — output exports remain `.xlsx`/`.csv`.
+
 - **Web scraping**: ScrapingBee columns (`scraped_title`, `scraped_bullet_N`
   etc) are automatically normalised to standard field names during enrichment.
 
